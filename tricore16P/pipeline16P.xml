@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!-- pipeline TC 1.6P /-->
+
+<processor class="otawa::hard::Processor">
+	<arch>tricore</arch>
+	<model>tc275T</model>
+	<frequency>200000000</frequency>	<!-- 300 Mhz -->
+	
+	<stages>
+		<stage id="F1">
+			<name>F1</name>
+			<width>1</width>
+			<type>FETCH</type>
+		</stage>
+		<stage id="F2">
+			<name>F2</name>
+			<width>3</width>
+			<type>LAZY</type>
+		</stage>
+		<stage id="EX">
+			<name>E1</name>
+			<width>3</width>
+			<type>EXEC</type>
+			<ordered>true</ordered>
+			<fus>
+				<fu id="INT">                       <!-- Integer pipeline -->
+					<name>Integer Unit</name>
+					<width>1</width>
+					<latency>3</latency>
+					<pipelined>true</pipelined>
+				</fu>
+				<fu id="LP">                        <!-- Loop pipeline -->
+					<name>Loop Pipeline Unit</name>
+					<width>1</width>
+					<latency>3</latency>
+					<pipelined>true</pipelined>
+				</fu>
+				<fu id="LS">                        <!-- Load/Store pipeline -->
+					<name>Load Store Unit</name>
+					<width>1</width>
+					<latency>3</latency>
+					<pipelined>true</pipelined>
+				</fu>
+				<fu id="FP">                        <!-- Float Point Unit pipeline -->
+					<name>Float Point Unit</name>
+					<width>1</width>
+					<latency>3</latency>
+					<pipelined>true</pipelined>
+				</fu>
+			</fus>
+			<dispatch>
+				<inst>
+					<type>0x80000000</type> <!-- IS_LP -->
+					<fu ref="LP"/>
+				</inst>
+				<inst>
+					<type>0x40000000</type>  <!-- IS_LS -->
+					<fu ref="LS"/>
+				</inst>
+				<inst>
+					<type>0x20000000</type>  <!-- IS_FP -->
+					<fu ref="FP"/>
+				</inst>
+				<inst>
+					<type></type>
+					<fu ref="INT"/>
+				</inst>
+			</dispatch>
+		</stage>
+		<stage id="CM">
+			<name>E2</name>
+			<width>3</width>
+			<type>COMMIT</type>
+		</stage>
+	</stages>
+	<queues>
+		<queue>
+			<name>FETCH_QUEUE</name>
+			<size>6</size>
+			<input ref="F1"/>
+			<output ref="F2"/>
+		</queue>
+	</queues>
+</processor>
+			
+
+

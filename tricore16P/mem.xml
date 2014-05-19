@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<memory>
+	<banks>
+		<bank>
+			<name>PSPR</name>
+			<address><offset>0xC8000000</offset></address>
+			<size>0x00040000</size>
+			<type>SPM</type>
+			<latency><xsl:value-of select="2+$prwws"/></latency>
+			<write_latency><xsl:value-of select="2+$prwws"/></write_latency>
+			<writable>true</writable>
+			<cachable>true</cachable>
+		</bank>
+		<bank>
+			<name>DSPR</name>
+			<address><offset>0xD0000000</offset></address>
+			<size>0x00100000</size>
+			<type>SPM</type>
+			<latency><xsl:value-of select="2+$prwws"/></latency>
+			<write_latency><xsl:value-of select="2+$prwws"/></write_latency>
+			<writable>true</writable>
+			<cachable>true</cachable>
+		</bank>
+		<bank>
+			<name>SRAM</name>   <!--sram cachable-->
+			<address><offset>0x90000000</offset></address>
+			<size>0x00100000</size>
+			<type>SPM</type>
+			<latency><xsl:value-of select="2+$prwws"/></latency>
+			<write_latency><xsl:value-of select="2+$prwws"/></write_latency>
+			<writable>true</writable>
+			<cachable>true</cachable>
+		</bank>
+		<bank>                     
+			<name>SRAM</name>   <!--sram no cachable-->
+			<address><offset>0xB0000000</offset></address>
+			<size>0x00100000</size>
+			<type>SPM</type>
+			<latency><xsl:value-of select="2+$prwws"/></latency>
+			<write_latency><xsl:value-of select="2+$prwws"/></write_latency>
+			<writable>true</writable>
+			<cachable>false</cachable>
+		</bank>
+		<bank>
+			<name>BROM</name>   <!--BROM cachable-->
+			<address><offset>0x8FFFC000</offset></address>
+			<size>0x00020000</size>
+			<type>ROM</type>
+			<latency><xsl:value-of select="2+$prwws"/></latency>
+			<write_latency><xsl:value-of select="2+$prwws"/></write_latency>
+			<writable>false</writable>
+			<cachable>true</cachable>
+		</bank>
+		<bank>
+			<name>BROM</name>   <!--BROM no cachable-->
+			<address><offset>0xAFFFC000</offset></address>
+			<size>0x00020000</size>
+			<type>ROM</type>
+			<latency><xsl:value-of select="2+$prwws"/></latency>
+			<write_latency><xsl:value-of select="2+$prwws"/></write_latency>
+			<writable>false</writable>
+			<cachable>false</cachable>
+		</bank>
+		<bank>
+			<name>PFLASH0</name>   <!--PFLASH0 cachable-->
+			<address><offset>0x80000000</offset></address>
+			<size>0x01000000</size>
+			<type>FLASH</type>
+			<latency><xsl:value-of select="2+$prwws"/></latency>
+			<write_latency><xsl:value-of select="2+$prwws"/></write_latency>
+			<writable>true</writable>
+			<cachable>true</cachable>
+		</bank>
+		<bank>
+			<name>PFLASH0</name>   <!--PFLASH0 no cachable-->
+			<address><offset>0xA0000000</offset></address>
+			<size>0x01000000</size>
+			<type>DRAM</type>
+			<latency><xsl:value-of select="2+$prwws"/></latency>
+			<write_latency><xsl:value-of select="2+$prwws"/></write_latency>
+			<writable>true</writable>
+			<cachable>false</cachable>
+		</bank>
+		<bank>
+			<name>PFLASH1</name>   <!--PFLASH1 cachable-->
+			<address><offset>0x80800000</offset></address>
+			<size>0x01000000</size>
+			<type>DRAM</type>
+			<latency><xsl:value-of select="2+$prwws"/></latency>
+			<write_latency><xsl:value-of select="2+$prwws"/></write_latency>
+			<writable>true</writable>
+			<cachable>true</cachable>
+		</bank>
+		<bank>
+			<name>PFLASH1</name>   <!--PFLASH1 no cachable-->
+			<address><offset>0xA0800000</offset></address>
+			<size>0x01000000</size>
+			<type>DRAM</type>
+			<latency><xsl:value-of select="2+$prwws"/></latency>
+			<write_latency><xsl:value-of select="2+$prwws"/></write_latency>
+			<writable>true</writable>
+			<cachable>false</cachable>
+		</bank>
+		<bank>
+			<name>DFLASH0</name>   <!--DFLASH0 no cachable-->
+			<address><offset>0xAF000000</offset></address>
+			<size>0x000C0000</size>
+			<type>DRAM</type>
+			<latency><xsl:value-of select="2+$prwws"/></latency>
+			<write_latency><xsl:value-of select="2+$prwws"/></write_latency>
+			<writable>true</writable>
+			<cachable>false</cachable>
+		</bank>
+		<bank>
+			<name>DFLASH1</name>   <!--DFLASH1 no cachable-->
+			<address><offset>0xAF080000</offset></address>
+			<size>0x000C0000</size>
+			<type>DRAM</type>
+			<latency><xsl:value-of select="2+$prwws"/></latency>
+			<write_latency><xsl:value-of select="2+$prwws"/></write_latency>
+			<writable>true</writable>
+			<cachable>false</cachable>
+		</bank>
+		<bank>
+			<name>IO0</name>   <!--IO0 no cachable-->
+			<address><offset>0xF0000C00</offset></address>
+			<size>0x00006000</size>
+			<type>IO</type>
+			<latency><xsl:value-of select="2+$prwws"/></latency>
+			<write_latency><xsl:value-of select="2+$prwws"/></write_latency>
+			<writable>true</writable>
+			<cachable>false</cachable>
+		</bank>
+		<bank>
+			<name>IO0</name>   <!--IO1 no cachable-->
+			<address><offset>0xF0300C00</offset></address>
+			<size>0x00003800</size>
+			<type>IO</type>
+			<latency><xsl:value-of select="2+$prwws"/></latency>
+			<write_latency><xsl:value-of select="2+$prwws"/></write_latency>
+			<writable>true</writable>
+			<cachable>false</cachable>
+		</bank>
+	</banks>
+</memory>
