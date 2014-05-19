@@ -1,0 +1,5 @@
+d:/stage_wcet/workspace/libotawa/lib/otawa/proc/continental/tricore16P.dll
+d:/stage_wcet/workspace/libotawa/share/Otawa/scripts/tricore16P.osx
+d:/stage_wcet/workspace/libotawa/share/Otawa/scripts/tricore16P/pipeline16P.xml
+d:/stage_wcet/workspace/libotawa/share/Otawa/scripts/tricore16P/mem.xml
+d:/stage_wcet/workspace/libotawa/share/Otawa/scripts/tricore16P/cache16P.xml
