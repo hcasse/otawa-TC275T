@@ -284,7 +284,7 @@ private:
 };
 
 #define BY_CONTEXT_ONLY
-#define BY_SPLIT
+//#define BY_SPLIT
 
 
 /**
@@ -476,7 +476,12 @@ class BBTimer: public GraphBBTime<ExeGraph> {
 public:
 	static p::declare reg;
 	BBTimer(void): GraphBBTime<ExeGraph>(reg) { }
+
 protected:
+
+	virtual void configure(const PropList& props) {
+		GraphBBTime<ExeGraph>::configure(props);
+	}
 
 	virtual void processBB(WorkSpace *ws, CFG *cfg, BasicBlock *bb) {
 		if(bb->isEnd())
@@ -596,9 +601,6 @@ protected:
 			
 		}
 		
-		
-		
-
 		// perform the computation
 		ot::time cost = apply(graph, 0);
 #		ifdef BY_SPLIT
@@ -610,25 +612,45 @@ protected:
 		return cost;
 	}
 
-	ot::time apply(ParExeGraph& graph, int i) {
+	ot::time apply(ExeGraph& graph, int i) {
+
+		// leaf of the event tree ?
 		if(i >= events.length()) {
+
+			// perform analysis
 			ot::time cost = graph.analyze();
+
+			// verbose output
 			if(events && isVerbose()) {
 				log << "\t\t\t\t";
 				for(int j = 0; j < events.length(); j++)
 					log << (events[j]->activated() ? "+" : "-");
 				log << " cost = " << cost << io::endl;
 			}
+
+			// graph dump if needed
+			if(_do_output_graphs)
+				outputGraph(&graph, cur->number(), prev ? prev->number() : 0, conf.bits(),
+					_ << events.length() << " events, cost = " << cost);
+
+			// add computed configuration
 			addConf(cost, conf);
 			return cost;
 		}
+
+		// just a node
 		else {
+
+			// event off
 			conf.clear(i);
 			ot::time without = apply(graph, i + 1);
 			events[i]->apply();
+
+			// event on
 			conf.set(i);
 			ot::time with =  apply(graph, i + 1);
 			events[i]->rollback();
+
 			return max(with, without);
 		}
 	}
@@ -871,7 +893,7 @@ protected:
 	genstruct::Vector<Event *> events;
 	Config conf;
 	genstruct::Vector<ConfigSet> confs;
-
+	sys::Path gpath;
 };
 
 p::declare BBTimer::reg = p::init("continental::tricore16P::BBTimer", Version(1, 0, 0))
