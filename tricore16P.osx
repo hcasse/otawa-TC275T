@@ -29,6 +29,9 @@
 	<item name="dfrws" type="range" default="0" label="Data Flash read wait states" low="0" high="63">
 		<help>Defines the number of wait state for a DFLASH read. Set by register FCON.WSDFLASH </help>
 	</item>
+	<item name="gpath" type="string" default="" label="debug: graph path">
+		<help>Path to a directory where exegraph will be dumped.</help>
+	</item>
 </configuration>
 
 <platform>
@@ -224,8 +227,12 @@
 	<step require="otawa::VIRTUALIZED_CFG_FEATURE"/>
 	<step require="otawa::branch::CATEGORY_FEATURE"/>
 	<step require="otawa::ICACHE_CATEGORY2_FEATURE"/>
-	<step require="continental::tricore16P::PREFETCH_CATEGORY_FEATURE"/>
-	<step processor="continental::tricore16P::BBTimer"/>
+	<!--  step require="continental::tricore16P::PREFETCH_CATEGORY_FEATURE"/-->
+	<step processor="continental::tricore16P::BBTimer">
+		<xsl:if test="$gpath!=''">
+			<config name="otawa::GRAPHS_OUTPUT_DIRECTORY" value="{$gpath}"/>
+		</xsl:if>
+	</step>
 	<!--step require="otawa::ipet::EDGE_TIME_FEATURE"/-->
 	<step require="otawa::ipet::WCET_FEATURE"/>
 </script>
