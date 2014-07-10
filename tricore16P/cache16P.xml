@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<cache-config>
+	<icache>
+		<block_bits>5</block_bits> <!-- 32 octets dans une ligne de cache /-->
+		<way_bits>2</way_bits> 
+		<row_bits>11</row_bits> <!-- 16 KBytes /-->
+	</icache>
+	<dcache>
+		<block_bits>5</block_bits>
+		<way_bits>2</way_bits>
+		<row_bits>10</row_bits> <!-- 8 KBytes /-->
+	</dcache>
+</cache-config>

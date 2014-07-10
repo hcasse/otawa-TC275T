@@ -1,0 +1,5 @@
+/home/casse/otawa/site/lib/otawa/proc/continental/tricore16P.so
+/home/casse/otawa/site/share/Otawa/scripts/tricore16P.osx
+/home/casse/otawa/site/share/Otawa/scripts/tricore16P/pipeline16P.xml
+/home/casse/otawa/site/share/Otawa/scripts/tricore16P/mem.xml
+/home/casse/otawa/site/share/Otawa/scripts/tricore16P/cache16P.xml
