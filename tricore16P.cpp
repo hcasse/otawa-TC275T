@@ -214,7 +214,10 @@ public:
 		WorkSpace *ws,
 		ParExeProc *proc,
 		ParExeSequence *seq,
-		const PropList &props = PropList::EMPTY): otawa::ParExeGraph(ws, proc, seq, props) { }
+		const PropList &props = PropList::EMPTY): otawa::ParExeGraph(ws, proc, seq, props)
+	{
+		this->setBranchPenalty(0);
+	}
 
 	virtual void findDataDependencies(void) {
 		gliss::Info *info = gliss::INFO(_ws->process());
@@ -407,8 +410,9 @@ Identifier<TimeReduction> TIME_REDUCTION("otawa::TIME_REDUCTION", TimeReduction(
  */
 class Event {
 public:
-	Event(void): act(false) { }
+	//Event(void): act(false) { }
 	Event(const string& name): _name(name), act(false) { }
+	virtual ~Event(void) { }
 	inline bool activated(void) const { return act; }
 	inline const string& name(void) const { return _name; }
 	inline void setName(const string& name) { _name = name; }
@@ -421,7 +425,7 @@ private:
 
 class EdgeEvent: public Event {
 public:
-	EdgeEvent(ParExeEdge *edge, ot::time time): _edge(edge), _time(time) { }
+	EdgeEvent(const string& name, ParExeEdge *edge, ot::time time): Event(name), _edge(edge), _time(time) { }
 
 	virtual void apply(void) {
 		Event::apply();
@@ -447,7 +451,7 @@ private:
 
 class NodeEvent: public Event {
 public:
-	NodeEvent(ParExeNode *node, ot::time time): _node(node), _time(time) { }
+	NodeEvent(const string& name, ParExeNode *node, ot::time time): Event(name), _node(node), _time(time) { }
 
 	virtual void apply(void) {
 		Event::apply();
@@ -596,9 +600,6 @@ protected:
 				cout << "PF_N" << io::endl;*/
 					
 			computePFlashPrefetch(table.get(i).snd, last_inst);
-			
-			
-			
 		}
 		
 		// perform the computation
@@ -629,9 +630,13 @@ protected:
 			}
 
 			// graph dump if needed
-			if(_do_output_graphs)
-				outputGraph(&graph, cur->number(), prev ? prev->number() : 0, conf.bits(),
-					_ << events.length() << " events, cost = " << cost);
+			if(_do_output_graphs) {
+				StringBuffer buf;
+				buf << events.length() << " events, cost = " << cost << "\\l";
+				for(int i = 0; i < events.length(); i++)
+					buf << (conf.bit(i) ? "+ " : "- ") << events[i]->name() << "\\l";
+				outputGraph(&graph, cur->number(), prev ? prev->number() : 0, conf.bits(), buf.toString());
+			}
 
 			// add computed configuration
 			addConf(cost, conf);
@@ -688,7 +693,7 @@ protected:
 				log << "\t\t\t\tbranch: NC\n";
 		doit: {
 				ParExeEdge *edge = new ParExeEdge(last->firstNode(), first->firstNode(), ParExeEdge::SOLID, is_taken ? 1 : 0);
-				events.add(new EdgeEvent(edge, 2));
+				events.add(new EdgeEvent("branch prediction", edge, 2));
 			}
 			break;
 		}
@@ -730,7 +735,7 @@ protected:
 			if(isVerbose())
 				log << "\t\t\t\tI$: NC at " << block->address() << io::endl;
 		doit:
-			events.add(new NodeEvent(inst->firstNode(), 1+memoryLatency(block->address())));
+			events.add(new NodeEvent("instruction cache", inst->firstNode(), 1+memoryLatency(block->address())));
 			break;
 		}
 	}
