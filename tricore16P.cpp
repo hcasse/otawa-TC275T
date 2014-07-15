@@ -5,6 +5,9 @@
 #include <otawa/util/LBlockBuilder.h>
 #include <otawa/branch/features.h>
 #include <otawa/etime/EdgeTimeBuilder.h>
+#include <otawa/etime/features.h>
+#include <otawa/cache/cat2/features.h>
+#include <otawa/cfg/features.h>
 
 
 #include "prod16P.h"
@@ -14,31 +17,188 @@ using namespace otawa;
 namespace continental { namespace tricore16P {
 
 
-#if 0
+
 typedef enum {
-	PF_NONE = 0,
-	PF_NC = 1,
-	PF_A = 2,
-	PF_N = 3
+	PF_NONE = 0,	// invalid value
+	PF_NC = 1,		// not classified
+	PF_ALWAYS = 2,	// always pre-fetched
+	PF_NEVER = 3	// never pre-fetched
 } pf_t;
+
+typedef Pair<Address, pf_t> pf_info_t;
+Identifier<pf_t> PREFETCHED("continental::tricore16P::PREFETECHED", PF_NONE);
+
+io::Output& operator<<(io::Output& out, pf_t p) {
+	static cstring msgs[] = {
+		"none",
+		"not-classified",
+		"always",
+		"never"
+	};
+	ASSERT(p >= 0 && p <= PF_NEVER);
+	out << msgs[p];
+	return out;
+}
+
+
+class PrefetchEvent: public otawa::etime::Event {
+public:
+	PrefetchEvent(Inst *inst, pf_t prefetch, LBlock *lblock): Event(inst), pf(prefetch), lb(lblock) { }
+
+	virtual etime::kind_t kind(void) const { return etime::FETCH; }
+	virtual ot::time cost(void) const { return 0; }		// TO DO
+	virtual etime::type_t type(void) const { return etime::BLOCK; }
+
+	virtual etime::occurrence_t occurrence(void) const {
+		switch(pf) {
+		case PF_NC:		return etime::SOMETIMES;
+		case PF_ALWAYS:	return etime::ALWAYS;
+		case PF_NEVER:	return etime::NEVER;
+		default:		ASSERT(false); return etime::SOMETIMES;
+		}
+	}
+
+	virtual cstring name(void) const { return "PFlash Prefetch"; }
+
+	virtual bool isEstimating(bool on) { return on; }
+
+	virtual void estimate(ilp::Constraint *cons, bool on) {
+		ASSERT(on);
+		ASSERT(MISS_VAR(lb));
+		cons->addLeft(1, MISS_VAR(lb));
+	}
+
+	virtual int weight(void) const {
+		switch(otawa::CATEGORY(lb)) {
+		case INVALID_CATEGORY:		ASSERT(false); return 0;
+		case ALWAYS_HIT:			return 0;
+		case FIRST_MISS:
+			{ BasicBlock *pbb = ENCLOSING_LOOP_HEADER(otawa::CATEGORY_HEADER(lb)); if(pbb) return WEIGHT(pbb); else return 1; }
+		case ALWAYS_MISS:
+		case FIRST_HIT:
+		case NOT_CLASSIFIED:		return WEIGHT(lb->bb());
+		}
+	}
+
+private:
+	pf_t pf;
+	LBlock *lb;
+};
+
 
 class PrefetchCategoryAnalysis: public BBProcessor {
 public:
 	static p::declare reg;
-	PrefetchCategoryAnalysis(void): BBProcessor(reg) { }
+	PrefetchCategoryAnalysis(void): BBProcessor(reg) {
+	}
+
 protected:
-	virtual void processBB(WorkSpace *ws, CFG *cfg, BasicBlock *bb);
+
+	virtual void processBB(WorkSpace *ws, CFG *cfg, BasicBlock *bb) {
+		if(bb->isEnd())
+			return;
+
+		// get L-Blocks
+		genstruct::AllocatedTable<LBlock* >* blocks = BB_LBLOCKS(bb);
+
+		// process each BB
+		for(int i = 0; i < blocks->size(); i++){
+
+			// get LBlock
+			LBlock *block = blocks->get(i);
+			cache::category_t cat = cache::CATEGORY(block);
+
+			// compute prefetched
+			pf_t prefetch_cat = PF_NONE;
+			switch(cat) {
+			case cache::FIRST_HIT:
+			case cache::INVALID_CATEGORY:	ASSERTP(false, "invalid_category found"); break;
+			case cache::ALWAYS_HIT:			prefetch_cat = PF_NONE; break;
+			case cache::ALWAYS_MISS:
+			case cache::FIRST_MISS:
+			case cache::NOT_CLASSIFIED:		prefetch_cat = findPrefetchCategory(i, blocks, bb); break;
+			}
+
+			// hook it
+			if(prefetch_cat != PF_NONE) {
+				PREFETCHED(block) = prefetch_cat;
+				etime::EVENT(bb).add(new PrefetchEvent(block->instruction(), prefetch_cat, block));
+			}
+			if(logFor(LOG_BB))
+				log << "\t\t\t" << block->address() << "\t" << prefetch_cat << io::endl;
+		}
+	}
+
 private:
-	pf_t findPrefetchCategory(int i, genstruct::AllocatedTable<LBlock* >* blocks, BasicBlock *bb);
+
+	pf_t join(pf_t p1, pf_t p2) {
+		if(p1 == p2)
+			return p1;
+		else if(p1 == PF_NONE)
+			return p2;
+		else if(p2 == PF_NONE)
+			return p1;
+		else
+			return PF_NC;
+	}
+
+	pf_t findPrefetchCategory(int i, genstruct::AllocatedTable<LBlock* >* blocks, BasicBlock *bb) {
+		pf_t prefetch_cat = PF_NONE;
+		LBlock *block;
+
+		// find previous LBlock
+		if(i != 0) {
+			block = blocks->get(i-1);
+
+			//find category of previous LBlock
+			cache::category_t cat = cache::CATEGORY(block);
+			switch(cat) {
+			case cache::INVALID_CATEGORY:
+			case cache::FIRST_HIT:			ASSERTP(false, "invalid_category found"); break;
+			case cache::ALWAYS_HIT:			prefetch_cat = PF_NEVER; break;
+			case cache::ALWAYS_MISS:		prefetch_cat = PF_ALWAYS; break;
+			case cache::FIRST_MISS:			prefetch_cat = PF_ALWAYS; break;
+			case cache::NOT_CLASSIFIED:		prefetch_cat = PF_NC; break;
+			}
+		}
+
+		// find last LBlock of previous BBlock
+		else {
+
+			for(BasicBlock::InIterator edge(bb); edge; edge++) {
+				BasicBlock *inbb = edge->source();
+
+				// not in sequence: never prefetched
+				if(inbb->topAddress() != bb->address())
+					prefetch_cat = join(prefetch_cat, PF_NEVER);
+
+				// else examine what happens before
+				else {
+
+					// get last LBlock of previous BB category
+					genstruct::AllocatedTable<LBlock* >* blocks_prev = BB_LBLOCKS(inbb);
+					LBlock *block_prev = blocks_prev->get(blocks_prev->size()-1);
+					cache::category_t cat = cache::CATEGORY(block_prev);
+
+					// examine the category
+					switch(cat) {
+					case cache::FIRST_HIT:
+					case cache::INVALID_CATEGORY:	ASSERTP(false, "invalid_category found"); break;
+					case cache::ALWAYS_HIT:			prefetch_cat = join(prefetch_cat, PF_NEVER); break;
+					case cache::FIRST_MISS:
+					case cache::ALWAYS_MISS:		prefetch_cat = join(prefetch_cat, PF_ALWAYS); break;
+					case cache::NOT_CLASSIFIED:		prefetch_cat = join(prefetch_cat, PF_NC); break;
+					}
+
+				}
+			}
+		}
+
+		return prefetch_cat;
+	}
 };
 
 Feature<PrefetchCategoryAnalysis> PREFETCH_CATEGORY_FEATURE("continental::tricore16P::PREFETCH_CATEGORY_FEATURE");
-
-
-
-typedef Pair<Address, pf_t> pf_info_t;
-typedef genstruct::Table<pf_info_t> pf_infos_t;
-Identifier<pf_infos_t> PF_INFOS("continental::tricore16P::PF_INFOS");
 
 
 p::declare PrefetchCategoryAnalysis::reg = p::init("continental::tricore16P::PrefetchCategoryAnalysis", Version(1, 0, 0))
@@ -46,167 +206,6 @@ p::declare PrefetchCategoryAnalysis::reg = p::init("continental::tricore16P::Pre
 	.base(BBProcessor::reg)
 	.provide(PREFETCH_CATEGORY_FEATURE)
 	.require(otawa::ICACHE_CATEGORY2_FEATURE);
-
-
-//TODO : check cache::first_hit & cache::first_miss
-void PrefetchCategoryAnalysis::processBB(WorkSpace *ws, CFG *cfg, BasicBlock *bb) {
-	log << "DEBUG : starting Prefetch Analysis for block " << bb->address() << io::endl;
-	
-	/*//tests
-	log << "TESTS: size " << bb->size() << io::endl;
-	log	<< "TESTS: inst count " << bb->countInstructions() << io::endl;*/
-
-
-	genstruct::AllocatedTable<LBlock* >* blocks = BB_LBLOCKS(bb);
-	
-	pf_t prefetch_cat=PF_NONE;
-	
-	if(bb->isVirtual()==true){
-		//log << "DEBUG : Number of LBlocks : " << blocks->size() << io::endl;
-			
-		pf_info_t *tab = new pf_info_t[blocks->size()];	
-			
-		for(int i=0; i<blocks->size(); i++){
-			LBlock *block = blocks->get(i);
-			//log << "DEBUG : address of LBlock : " << block->address() << io::endl;
-			cache::category_t cat = cache::CATEGORY(block);
-				
-			switch(cat) {
-			case cache::INVALID_CATEGORY:
-				ASSERTP(false, "invalid_category found");
-				break;
-			case cache::ALWAYS_HIT:
-				//log << "DEBUG : cache always hit" << io::endl;
-				prefetch_cat=PF_N;
-				break;
-			case cache::FIRST_HIT:
-				//log << "DEBUG : cache first hit" << io::endl;
-				prefetch_cat=PF_N; // (?)
-				break;
-			case cache::ALWAYS_MISS:
-				//log << "DEBUG : cache always miss" << io::endl;
-				prefetch_cat=findPrefetchCategory(i,blocks,bb);
-				break;
-			case cache::FIRST_MISS:
-				//log << "DEBUG : cache first miss" << io::endl;
-				prefetch_cat=findPrefetchCategory(i,blocks,bb); //(?)
-				break;
-			}
-			
-			//create the pair address/category and put it in the table
-			tab[i].fst = block->address();
-			tab[i].snd = prefetch_cat;
-		}
-		
-		//attach the table to the block
-		pf_infos_t table(tab,blocks->size());
-		PF_INFOS(bb) = table;
-		
-		//testing table
-		log << "DEBUG : testing values of table " << io::endl;
-		for(int i=0; i<blocks->size(); i++){
-			log << "DEBUG : " << table.get(i).fst << "  ";
-			if(table.get(i).snd == PF_A)
-				log << "PF_A" << io::endl;
-			else
-				log << "PF_N" << io::endl;
-		}
-	}
-}
-
-
-
-pf_t PrefetchCategoryAnalysis::findPrefetchCategory(int i, genstruct::AllocatedTable<LBlock* >* blocks, BasicBlock *bb){
-	pf_t prefetch_cat = PF_NONE;
-	LBlock *block;
-	
-	//find previous LBlock
-	if(i!=0){
-		block = blocks->get(i-1);
-		
-		//find category of previous LBlock
-		cache::category_t cat = cache::CATEGORY(block);
-		switch(cat) {
-		case cache::INVALID_CATEGORY:
-			ASSERTP(false, "invalid_category found");
-			break;
-		case cache::ALWAYS_HIT:
-			//cout << "DEBUG : PF_N" << io::endl;
-			prefetch_cat = PF_N;
-			break;
-		case cache::ALWAYS_MISS:
-			//cout << "DEBUG : PF_A" << io::endl;
-			prefetch_cat = PF_A;
-			break;
-		case cache::FIRST_HIT:
-			//cout << "DEBUG : PF_N" << io::endl;
-			prefetch_cat = PF_N;
-			break;
-		case cache::FIRST_MISS:
-			//cout << "DEBUG : PF_A" << io::endl;
-			prefetch_cat = PF_A;
-			break;
-		}
-	}
-	
-	//find last LBlock of previous BBlock
-	else{ 
-		//cout << "DEBUG : First LBlock" << io::endl;
-			
-		for(BasicBlock::InIterator edge(bb); edge; edge++) {
-			BasicBlock *inbb = edge->source();
-			
-			if(inbb->isVirtual()==true){
-				//cout << "DEBUG : Address of previous Block : " << inbb->address() << io::endl;
-					
-				//get last LBlock of previous BasicBlock
-				genstruct::AllocatedTable<LBlock* >* blocks_prev = BB_LBLOCKS(inbb);
-				LBlock *block_prev = blocks_prev->get(blocks_prev->size()-1);
-				
-				cache::category_t cat = cache::CATEGORY(block_prev);
-				prefetch_cat = PF_A;
-				
-				if(cat == cache::INVALID_CATEGORY) {
-					ASSERTP(false, "invalid_category found");
-				}
-				
-				else if(cat == cache::ALWAYS_HIT || cat == cache::FIRST_HIT){
-					prefetch_cat = PF_N;
-					//cout << "DEBUG : PF_N" << io::endl;
-				}
-				
-				else{
-					//cout << "DEBUG : Previous LBlock is cache miss" << io::endl;
-					//check if last LBlock of previous BBlock is just before first LBlock of current BBlock
-					block = blocks->get(0);
-					if(block->address() != (block_prev->address()+block_prev->size())){
-						prefetch_cat = PF_N;
-						//cout << "DEBUG : PF_N" << io::endl;
-					}
-				}
-			}
-			
-			//if entry basic block then instruction is never prefetched
-			else
-				prefetch_cat = PF_N;
-		}
-		
-		/*if(prefetch_cat == PF_N)
-			cout << "DEBUG : PF_N"<< io::endl;
-		else if(prefetch_cat == PF_A)
-			cout << "DEBUG : PF_A"<< io::endl;*/
-	}
-	
-	
-			
-	return prefetch_cat;
-}
-
-
-#endif
-
-
-
 
 
 class ExeGraph: public ParExeGraph {
@@ -262,6 +261,7 @@ private:
 			}
 		}
 		ASSERT(false);
+		return 0;
 	}
 	
 	ParExeNode *findExe(ParExeInst *inst, int num) {
@@ -286,6 +286,7 @@ private:
 			}
 		}
 		ASSERT(false);
+		return 0;
 	}
 };
 
