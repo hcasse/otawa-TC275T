@@ -2,7 +2,10 @@
 
 <!-- pipeline TC 1.6P /-->
 
-<processor class="otawa::hard::Processor">
+<processor class="otawa::hard::Processor"
+    xmlns:xi="http://www.w3.org/2001/XInclude"
+    xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
+
 	<arch>tricore</arch>
 	<model>tc275T</model>
 	<frequency>200000000</frequency>	<!-- 300 Mhz -->
@@ -30,12 +33,14 @@
 					<latency>3</latency>
 					<pipelined>true</pipelined>
 				</fu>
-				<fu id="LP">                        <!-- Loop pipeline -->
-					<name>Loop Pipeline Unit</name>
-					<width>1</width>
-					<latency>3</latency>
-					<pipelined>true</pipelined>
-				</fu>
+				<xsl:if test="$core=0">
+					<fu id="LP">                        <!-- Loop pipeline (missig in core E) -->
+						<name>Loop Pipeline Unit</name>
+						<width>1</width>
+						<latency>3</latency>
+						<pipelined>true</pipelined>
+					</fu>
+				</xsl:if>
 				<fu id="LS">                        <!-- Load/Store pipeline -->
 					<name>Load Store Unit</name>
 					<width>1</width>
@@ -52,7 +57,8 @@
 			<dispatch>
 				<inst>
 					<type>0x80000000</type> <!-- IS_LP -->
-					<fu ref="LP"/>
+					<xsl:if test="$core=0"><fu ref="LP"/></xsl:if>
+					<xsl:if test="$core=1"><fu ref="LS"/></xsl:if>					
 				</inst>
 				<inst>
 					<type>0x40000000</type>  <!-- IS_LS -->

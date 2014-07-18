@@ -8,17 +8,27 @@
 <!-- mem value for Core 1 (1.6P) /-->
 <!-- Diff 1.6P et 1.6E : PSPR, DSPR, ICACHE, DCACHE /-->
 
-<name>Tricore 1.6P (TC275T)</name>
+<name>Aurix (TC275T) (TriCore 1.6)</name>
 
 <info>
 	<h1>Tricore16P</h1>
+	
+	<h2>Differences between core E and core P</h2>
+	<ul>
+		<li>no LP pipeline in core E</li>
+		<li>instruction cache size: 16 KB (P), 8 KB (E)</li>
+		<li>data cache size: 8 KB (P), 128 B (E)</li>
+		<li>PSPR: 32 KB (P), 24 KB (E)</li>
+		<li>DSPR: 120 KB (P), 112 KB (E)</li>
+		<li></li>
+	</ul>
 </info>
 
 
 <id>
 	<arch>tricore</arch>
 	<abi>eabi</abi>
-	<mach>tricore 1.6P</mach>
+	<mach>TC275T</mach>
 </id>
 
 
@@ -32,18 +42,38 @@
 	<item name="gpath" type="string" default="" label="debug: graph path">
 		<help>Path to a directory where exegraph will be dumped.</help>
 	</item>
+	<item name="core" type="enum" label="Type of core">
+		<help>Select the type of core (P or E).</help>
+		<value label="core P" value="0" default="true"/>
+		<value label="core E" value="1"/> 
+	</item>
 </configuration>
 
 <platform>
+
+	<!-- cache definition -->
+	<xsl:if test="$core=0">
+		<xi:include href="tricore16P/cache16P.xml"/>
+	</xsl:if>
+	<xsl:if test="$core=1">
+		<xi:include href="tricore16P/cache16E.xml"/>
+	</xsl:if>
+
+	<!-- pipeline definition -->
 	<xi:include href="tricore16P/pipeline16P.xml"/>
-	<xi:include href="tricore16P/cache16P.xml"/>
-	<!--xi:include href="tricore/mem.xml"/-->
+
+	<!-- memory definition -->
 	<memory>
 		<banks>
 			<bank>
 				<name>PSPR</name> <!-- CPU1 Program Scratchpad RAM /-->
 				<address><offset>0x60100000</offset></address>
-				<size>0x00040000</size> <!-- 32 KBytes /-->
+				<xsl:if test="$core=0">
+					<size>0x00008000</size> <!-- 32 KBytes /-->
+				</xsl:if>
+				<xsl:if test="$core=1">
+					<size>0x00006000</size> <!-- 24 KBytes /-->
+				</xsl:if>
 				<type>SPM</type>
 				<latency>1</latency>
 				<write_latency>1</write_latency>
@@ -53,7 +83,12 @@
 			<bank>
 				<name>DSPR</name> <!-- CPU1 Data Scratchpad RAM /-->
 				<address><offset>0x60000000</offset></address>
-				<size>0x000F0000</size> <!-- 120 KBytes /-->
+				<xsl:if test="$core=0">
+					<size>0x00122880</size> <!-- 120 KBytes /-->
+				</xsl:if>
+				<xsl:if test="$core=1">
+					<size>0x00114688</size> <!-- 112 KBytes /-->
+				</xsl:if>
 				<type>SPM</type>
 				<latency>1</latency>
 				<write_latency>1</write_latency>
@@ -224,10 +259,12 @@
 
 </platform>
 <script>
+	<config name="otawa::ipet::EXPLICIT" value="true"/>
 	<step require="otawa::VIRTUALIZED_CFG_FEATURE"/>
 	<step require="otawa::branch::CATEGORY_FEATURE"/>
 	<step require="otawa::ICACHE_CATEGORY2_FEATURE"/>
-	<!--  step require="continental::tricore16P::PREFETCH_CATEGORY_FEATURE"/-->
+	<step require="continental::tricore16P::PREFETCH_CATEGORY_FEATURE"/>
+	<step require="otawa::ICACHE_ONLY_CONSTRAINT2_FEATURE"/>
 	<step processor="continental::tricore16P::BBTimer">
 		<xsl:if test="$gpath!=''">
 			<config name="otawa::GRAPHS_OUTPUT_DIRECTORY" value="{$gpath}"/>
@@ -235,6 +272,8 @@
 	</step>
 	<!--step require="otawa::ipet::EDGE_TIME_FEATURE"/-->
 	<step require="otawa::ipet::WCET_FEATURE"/>
+
+	<step processor="otawa::display::ILPSystemDisplayer"/>
 </script>
 
 
