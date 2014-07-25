@@ -10,6 +10,27 @@
 	<model>tc275T</model>
 	<frequency>200000000</frequency>	<!-- 300 Mhz -->
 	
+	<!-- timing:
+			* fetch (1.6P, 1.6E)
+				Instruction Protection		Fetch
+				PC Unit						Align
+					\						/
+							Issue Unit
+			* pipelines (1.6P)
+				IP Decode		LS Decode		Loop Decode
+				- - - - - - - - - - - - - - - - - - - - - - - -
+				MAC				xxx				xxx
+				Bit Processor	Address ALU		xxx
+				ALU				EA				Loop Exec.
+		
+			* pipelines (1.6E)
+				Instruction Decode	(1i / c)
+				- - - - - - - - - - - - - - - - - - - - - - - -
+				MAC				Loop Exec.
+				Bit Processor	Address ALU
+				ALU				EA
+	-->
+	
 	<stages>
 		<stage id="F1">
 			<name>F1</name>
@@ -28,27 +49,27 @@
 			<ordered>true</ordered>
 			<fus>
 				<fu id="INT">                       <!-- Integer pipeline -->
-					<name>Integer Unit</name>
+					<name>IP</name>
 					<width>1</width>
 					<latency>3</latency>
 					<pipelined>true</pipelined>
 				</fu>
-				<xsl:if test="$core=0">
+				<xsl:if test="$core=1 or $core=2">
 					<fu id="LP">                        <!-- Loop pipeline (missig in core E) -->
-						<name>Loop Pipeline Unit</name>
+						<name>LP</name>
 						<width>1</width>
 						<latency>3</latency>
 						<pipelined>true</pipelined>
 					</fu>
 				</xsl:if>
 				<fu id="LS">                        <!-- Load/Store pipeline -->
-					<name>Load Store Unit</name>
+					<name>LS</name>
 					<width>1</width>
 					<latency>3</latency>
 					<pipelined>true</pipelined>
 				</fu>
 				<fu id="FP">                        <!-- Float Point Unit pipeline -->
-					<name>Float Point Unit</name>
+					<name>FP</name>
 					<width>1</width>
 					<latency>3</latency>
 					<pipelined>true</pipelined>
@@ -57,8 +78,8 @@
 			<dispatch>
 				<inst>
 					<type>0x80000000</type> <!-- IS_LP -->
-					<xsl:if test="$core=0"><fu ref="LP"/></xsl:if>
-					<xsl:if test="$core=1"><fu ref="LS"/></xsl:if>					
+					<xsl:if test="$core=0"><fu ref="LS"/></xsl:if>					
+					<xsl:if test="$core=1 or $core=2"><fu ref="LP"/></xsl:if>
 				</inst>
 				<inst>
 					<type>0x40000000</type>  <!-- IS_LS -->
@@ -75,7 +96,7 @@
 			</dispatch>
 		</stage>
 		<stage id="CM">
-			<name>E2</name>
+			<name>E2</name>		<!-- TODO rename CM -->
 			<width>3</width>
 			<type>COMMIT</type>
 		</stage>

@@ -23,7 +23,7 @@ set(SCRIPT		"tricore16P")		# machine model
 set(NAMESPACE	"continental")	# namespace (classes must be contained in the namespace otawa::model)
 set(FILES		pipeline16P.xml mem.xml cache16P.xml cache16E.xml)				# cache, pipeline, memory
 set(MODULES	)				# used modules (to pass to otawa-config=
-set(SOURCES 	tricore16P.cpp prod16P.h)				# sources of the plugin
+set(SOURCES 	tricore16P.cpp prod16P.h mreg.h pipe.h)				# sources of the plugin
 
 
 # generation of prods
@@ -31,11 +31,32 @@ set(TRICORE_IRG	"${CMAKE_SOURCE_DIR}/../tricore/tricore.irg")
 set(GLISS_ATTR	"${CMAKE_SOURCE_DIR}/../gliss2/gep/gliss-attr")
 add_custom_command(
 	OUTPUT		"prod16P.h"
-	DEPENDS 	"prod.tpl" "prod16P.nmp" ${PPC_IRG}
+	DEPENDS 	"prod.tpl" "prod16P.nmp" ${TRICORE_IRG}
 	COMMAND 	${GLISS_ATTR}
 	ARGS 		${TRICORE_IRG} -o prod16P.h -a prod -f -t "prod.tpl" -d "return 2;" -e ${CMAKE_SOURCE_DIR}/prod16P.nmp
 	VERBATIM 
 )
+add_custom_command(
+	OUTPUT		"mreg.h"
+	DEPENDS 	"mreg.tpl" "prod16P.nmp" ${TRICORE_IRG}
+	COMMAND 	${GLISS_ATTR}
+	ARGS 		${TRICORE_IRG} -o mreg.h -a mreg -f -t "mreg.tpl" -d "return 0;" -e ${CMAKE_SOURCE_DIR}/prod16P.nmp
+	VERBATIM 
+)
+add_custom_command(
+	OUTPUT		"pipe.h"
+	DEPENDS 	"pipe.tpl" "prod16P.nmp" ${TRICORE_IRG}
+	COMMAND 	${GLISS_ATTR}
+	ARGS 		${TRICORE_IRG} -o pipe.h -a pipe -f -t "pipe.tpl" -d "return 0;" -e ${CMAKE_SOURCE_DIR}/prod16P.nmp
+	VERBATIM 
+)
+#add_custom_command(
+#	OUTPUT		"deps.h"
+#	DEPENDS 	"deps.tpl" "deps.nmp" ${TRICORE_IRG}
+#	COMMAND 	${GLISS_ATTR}
+#	ARGS 		${TRICORE_IRG} -o "deps.h" -a deps -p -t "deps.tpl" -d ";" -e "${CMAKE_SOURCE_DIR}/deps.nmp"
+#	VERBATIM 
+#)
 
 
 # script

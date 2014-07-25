@@ -10,13 +10,58 @@
 #include <otawa/cfg/features.h>
 
 
-#include "prod16P.h"
-
 using namespace otawa;
+
+#include "prod16P.h"
+#include "mreg.h"
+#include "pipe.h"
 
 namespace continental { namespace tricore16P {
 
+typedef enum {
+	IP = 0,
+	LS = 1,
+	LP = 2,
+	FP = 3,
+	BR = 4
+} pipe_t;
 
+/*
+ * TIMING of Instructions
+ *
+ * In the Aurix documentation, each instruction timingis defined
+ * by four numbers (lP, lE, rP, rE) that means:
+ *   * result latency core P, core E,
+ *   * repear rate core P, core E
+ *
+ * Mapping them to the structure of the pipeline:
+ * 	 * core P	MAC					bit processor		ALU
+ * 	 			xxx					Address ALU			EA (memory)
+ * 	 			xxx					xxx					loop execution
+ *	 * core		MAC					bit processor		ALU
+ * 	 			loop execution		Address ALU			EA (memory)
+ *
+ * These number could be interpreted as follows:
+ *	* for madd (multiply and add) operation
+ *		input registers read at MAC
+ *		output registers written at ALU
+ *	* for other integer ALU operation (l latency)
+ *		input registers read at ALU - max(l - 1, 2)
+ *		output registers written at ALU
+ *		if latency > 3 then latency of ALU is l - 2
+ *	* for loop instruction
+ *		register read/written at corresponding "loop execution" stage
+ *	* for load instruction
+ *		result register written at EA
+ *		other registers read/written at "Address ALU"
+ *		memory action is performed at EA
+ *	* for store instruction
+ *		register containing value to store ar read at EA
+ *		other registers read/written at "Address ALU"
+ *		memory action is performed at EA
+ *	* for non-loop branch instruction
+ *		look with branch-prediction
+ */
 
 typedef enum {
 	PF_NONE = 0,	// invalid value
@@ -207,80 +252,304 @@ p::declare PrefetchCategoryAnalysis::reg = p::init("continental::tricore16P::Pre
 	.provide(PREFETCH_CATEGORY_FEATURE)
 	.require(otawa::ICACHE_CATEGORY2_FEATURE);
 
-
 class ExeGraph: public ParExeGraph {
 public:
+	typedef genstruct::Vector<const hard::Register *> reg_set_t;
+
 	ExeGraph(
 		WorkSpace *ws,
 		ParExeProc *proc,
 		ParExeSequence *seq,
-		const PropList &props = PropList::EMPTY): otawa::ParExeGraph(ws, proc, seq, props)
+		const PropList &props = PropList::EMPTY,
+		bool coreE = false)
+	: otawa::ParExeGraph(ws, proc, seq, props), D(0), A(0), cur_inst(0), PSW(0), _coreE(coreE), ip(0), ls(0), lp(0), fp(0)
 	{
 		this->setBranchPenalty(0);
-	}
+		info = gliss::INFO(_ws->process());
 
-	virtual ~ExeGraph(void) { }
+		// look for register banks
+		const hard::Platform::banks_t &banks = ws->process()->platform()->banks();
+		for(int i = 0; i < banks.count(); i++) {
+			if(banks[i]->name() == "D")
+				D = banks[i];
+			else if(banks[i]->name() == "A")
+				A = banks[i];
+			else if(banks[i]->name() == "misc")
+				for(int j = 0; j < banks[i]->count(); j++) {
+					if(banks[i]->get(j)->name() == "PSW")
+						PSW = banks[i]->get(j);
+				}
+		}
+		ASSERT(D);
+		ASSERT(A);
+		ASSERT(PSW);
 
-	virtual void findDataDependencies(void) {
-		gliss::Info *info = gliss::INFO(_ws->process());
-		
 		// initialize register table
 		regs = new ParExeNode *[_ws->platform()->regCount()];
 		for(int i = 0; i < _ws->platform()->regCount(); i++)
 			regs[i] = 0;
-		
-		// build the producer list
-		for(InstIterator inst(this); inst; inst++) {
 
-			// process read registers
-			const elm::genstruct::Table<hard::Register *>& reads = inst->inst()->readRegs();
-			for(int i = 0; i < reads.count(); i++) {
-				ParExeNode *producer = regs[reads[i]->platformNumber()];
-				if(producer != NULL) {
-					findExe(inst)->addProducer(producer);
-					new ParExeEdge(producer, findExe(inst), ParExeEdge::SOLID);
+		// look for FU
+		for(ParExePipeline::StageIterator stage(_microprocessor->pipeline()); stage; stage++)
+			if(stage->category() == ParExeStage::EXECUTE)
+				for(int i = 0; i < stage->numFus(); i++) {
+					ParExePipeline *pfu = stage->fu(i);
+					if(pfu->firstStage()->name().startsWith("IP"))
+						ip = pfu;
+					else if(pfu->firstStage()->name().startsWith("LP"))
+						lp = pfu;
+					else if(pfu->firstStage()->name().startsWith("LS"))
+						ls = pfu;
+					else if(pfu->firstStage()->name().startsWith("FP"))
+						fp = pfu;
+					else
+						ASSERTP(false, pfu->firstStage()->name());
 				}
-			}
-			
-			// apply production on register table
-			int wstage = tricore_prod(info, inst->inst());
-			const elm::genstruct::Table<hard::Register *>& writes = inst->inst()->writtenRegs();
-			for(int i = 0; i < writes.count(); i++)
-				regs[writes[i]->platformNumber()] = findExe(inst, wstage); 
+		if(_coreE)
+			lp = ls;
+		ASSERT(ip);
+		ASSERT(ls);
+		ASSERT(lp);
+		ASSERT(fp);
+	}
+
+	virtual ~ExeGraph(void) { }
+
+	/**
+	 * Test if the graph is done for core E processor.
+	 * @return	True for core E, false for core P.
+	 */
+	inline bool isCoreE(void) const { return _coreE; }
+
+	/**
+	 */
+	virtual ParExePipeline *pipeline(ParExeStage *stage, ParExeInst *inst) {
+		cerr << "DEBUG: here: " << inst->inst() << io::endl;
+		switch(tricore_pipe(info, inst->inst())) {
+		case IP:	return ip;
+		case LS:	return ls;
+		case LP:	return lp;
+		case FP:	return fp;
+		case BR:	return lp;		// TO FIX: no known solution: branches may in any LS, LP or IP pipeline according to availability
+		default:	ASSERT(false); return 0;
 		}
+	}
+
+	/**
+	 * Get register from mangled form.
+	 */
+	void regOf(int r, reg_set_t& set) {
+		int type = r >> 4, num = r & 0xf;
+		switch(type) {
+		case 0:		set.add(D->get(num)); break;
+		case 1:		set.add(A->get(num)); break;
+		case 2:		set.add(D->get(num)); set.add(D->get((num + 1) & 0xf)); break;
+		case 3:		set.add(A->get(num)); set.add(A->get((num + 1) & 0xf)); break;
+		default:	ASSERT(false); break;
+		}
+	}
+
+	/**
+	 * Set the delay of a stage.
+	 * @param stage		Execution stage number to set delay for.
+	 * @param delay		Delay in cycles.
+	 */
+	void setDelay(int stage, int delay) {
+		findExeAt(cur_inst, stage)->setLatency(delay);
+	}
+
+	virtual void addEdgesForMemoryOrder(void) { }
+
+	virtual void findDataDependencies(void) {
+		for(InstIterator inst(this); inst; inst++) {
+			if(inst->inst()->isMem()) {
+				if(inst->inst()->isLoad()) {
+					if(inst->inst()->isStore())
+						dependenciesForLoadStore(inst);
+					else
+						dependenciesForLoad(inst);
+				}
+				else
+					dependenciesForStore(inst);
+			}
+			else if(inst->inst()->meets(Inst::IS_FLOAT))
+				dependenciesForFloat(inst);
+			else if(inst->inst()->isControl()) {
+				if(tricore_prod(info, inst->inst(), _coreE) < 0)
+					dependenciesForLoop(inst);
+				else
+					dependenciesForBranch(inst);
+			}
+			else
+				this->dependenciesForALU(inst);
+		}
+	}
+
+	/**
+	 * Consider that the given node consume all read registers of the instruction.
+	 * @param inst		Considered instruction.
+	 * @param node		Consuming node.
+	 * @param excluded	Register to exclude (once).
+	 */
+	void consume(Inst *inst, ParExeNode *node, reg_set_t& excluded) {
+		const elm::genstruct::Table<hard::Register *>& reads = inst->readRegs();
+		for(int i = 0; i < reads.count(); i++) {
+			if(excluded.contains(reads[i])) {
+				excluded.remove(reads[i]);
+				continue;
+			}
+			consume(reads[i], node);
+		}
+	}
+
+	/**
+	 * If needed, creates an edge between the producer of reg and the current node.
+	 * @param reg	Consumed register.
+	 * @param node	Consumer.
+	 */
+	void consume(const hard::Register *reg, ParExeNode *node) {
+		ParExeNode *producer = regs[reg->platformNumber()];
+		if(producer != NULL) {
+			node->addProducer(producer);
+			new ParExeEdge(producer, node, ParExeEdge::SOLID, 0, reg->name());
+		}
+	}
+
+	/**
+	 * Consider that the given node produce all writeen registers of the instruction.
+	 * @param inst	Considered instruction.
+	 * @param node	Producing node.
+	 * @param excluded	Register to exclude (once).
+	 */
+	void produce(Inst *inst, ParExeNode *node, reg_set_t& excluded) {
+		const elm::genstruct::Table<hard::Register *>& writes = inst->writtenRegs();
+		for(int i = 0; i < writes.count(); i++) {
+			if(excluded.contains(writes[i])) {
+				excluded.remove(writes[i]);
+				continue;
+			}
+			produce(writes[i], node);
+		}
+	}
+
+	/**
+	 * Record the producer of a register.
+	 * @param reg	Produced register.
+	 * @param nod	Producer.
+	 */
+	void produce(const hard::Register *reg, ParExeNode *node) {
+		regs[reg->platformNumber()] = node;
+	}
+
+	/**
+	 * Generate dependencies for float instructions.
+	 * @param inst	Concerned instruction.
+	 */
+	void dependenciesForFloat(ParExeInst *inst) {
+		dependenciesForALU(inst);
+	}
+
+	/**
+	 * Generate dependencies for ALU instructions.
+	 * @param inst	Concerned instruction.
+	 */
+	void dependenciesForALU(ParExeInst *inst) {
+		int time = tricore_prod(info, inst->inst(), _coreE);
+		ParExeNode *cons_node = findExeAt(inst, max(0, 2 - time));
+		ParExeNode *prod_node = findExeAt(inst, 2);
+		reg_set_t null;
+		consume(inst->inst(), cons_node, null);
+		produce(inst->inst(), prod_node, null);
+		if(time > 2)
+			prod_node->setLatency(time - 1);
+	}
+
+	/**
+	 * Generate dependencies for load instructions.
+	 * @param inst	Concerned instruction.
+	 */
+	void dependenciesForLoad(ParExeInst *inst) {
+		ParExeNode *addr_node = findExeAt(inst, 1);
+		ParExeNode *mem_node = findExeAt(inst, 2);
+		reg_set_t null;
+		consume(inst->inst(), addr_node, null);
+		reg_set_t regs;
+		regOf(tricore_mreg(info, inst->inst()), regs);
+		produce(inst->inst(), addr_node, regs);
+		for(int i = 0; i < regs.length(); i++)
+			produce(regs[i], mem_node);
+	}
+
+	/**
+	 * Generate dependencies for store instructions.
+	 * @param inst	Concerned instruction.
+	 */
+	void dependenciesForStore(ParExeInst *inst) {
+		ParExeNode *addr_node = findExeAt(inst, 1);
+		ParExeNode *mem_node = findExeAt(inst, 2);
+		reg_set_t regs;
+		regOf(tricore_mreg(info, inst->inst()), regs);
+		consume(inst->inst(), addr_node, regs);
+		reg_set_t null;
+		produce(inst->inst(), addr_node, null);
+		for(int i = 0; i < regs.length(); i++)
+			produce(regs[i], mem_node);
+	}
+
+	/**
+	 * Generate dependencies for store instructions.
+	 * @param inst	Concerned instruction.
+	 */
+	void dependenciesForLoadStore(ParExeInst *inst) {
+		ParExeNode *addr_node = findExeAt(inst, 1);
+		ParExeNode *mem_node = findExeAt(inst, 2);
+		reg_set_t regs;
+		regOf(tricore_mreg(info, inst->inst()), regs);
+		consume(inst->inst(), addr_node, regs);
+		produce(inst->inst(), addr_node, regs);
+		for(int i = 0; i < regs.length(); i++)
+			produce(regs[i], mem_node);
+	}
+
+	/**
+	 * Generate dependencies for loop instructions.
+	 * @param inst	Concerned instruction.
+	 */
+	void dependenciesForLoop(ParExeInst *inst) {
+		ParExeNode *node = findExeAt(inst, isCoreE() ? 0 : 2);
+		reg_set_t null;
+		consume(inst->inst(), node, null);
+		produce(inst->inst(), node, null);
+	}
+
+	/**
+	 * Generate dependencies for branch instructions.
+	 * @param inst	Concerned instruction.
+	 */
+	void dependenciesForBranch(ParExeInst *inst) {
+		// TODO
 	}
 
 private:
 	ParExeNode **regs;
+	gliss::Info *info;
+	const hard::RegBank *A, *D;
+	const hard::Register *PSW;
+	otawa::ParExeInst *cur_inst;
+	bool _coreE;
+	ParExePipeline *ip, *ls, *lp, *fp;
 
-	ParExeNode *findExe(ParExeInst *inst) {
-		for(InstNodeIterator node(inst); node; node++) {
-			string name = node->stage()->name();
-			if(name == "Integer Unit3" || name == "Loop Pipeline Unit3" || name == "Load Store Unit3" || name == "Float Point Unit3"){
-				return node;
-			}
-		}
-		ASSERT(false);
-		return 0;
-	}
-	
-	ParExeNode *findExe(ParExeInst *inst, int num) {
-		gliss::Info *info = gliss::INFO(_ws->process());
-		for(InstNodeIterator node(inst); node; node++) {
-			string name = node->stage()->name();
-			if(name == "Integer Unit3" || name == "Loop Pipeline Unit3" || name == "Load Store Unit3" || name == "Float Point Unit3") {
-				int wstage = tricore_prod(info, inst->inst());
-				
-				if(wstage > 1) {
+	/**
+	 * Find a specific execution stage.
+	 * @param inst	Instruction to look in.
+	 * @param num	Number of the execution stage.
+	 */
+	ParExeNode *findExeAt(ParExeInst *inst, int num) {
+		for(ParExeInst::NodeIterator node(inst); node; node++) {
+			if(node->stage()->isFuStage()) {
+				while(num) {
 					node++;
-					node->setLatency (node->latency()+(wstage - 1));
-					return node;
-				}
-				else{
-					while(num) {
-						node++;
-						num--;
-					}
+					num--;
 				}
 				return node;
 			}
@@ -288,8 +557,8 @@ private:
 		ASSERT(false);
 		return 0;
 	}
-};
 
+};
 
 class BBTimer: public etime::EdgeTimeBuilder {
 public:

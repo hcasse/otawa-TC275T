@@ -44,8 +44,9 @@
 	</item>
 	<item name="core" type="enum" label="Type of core">
 		<help>Select the type of core (P or E).</help>
-		<value label="core P" value="0" default="true"/>
-		<value label="core E" value="1"/> 
+		<value label="core E" value="0"/> 
+		<value label="core P1" value="1" default="true"/>
+		<value label="core P2" value="2"/>
 	</item>
 </configuration>
 
@@ -53,10 +54,10 @@
 
 	<!-- cache definition -->
 	<xsl:if test="$core=0">
-		<xi:include href="tricore16P/cache16P.xml"/>
+		<xi:include href="tricore16P/cache16E.xml"/>
 	</xsl:if>
 	<xsl:if test="$core=1">
-		<xi:include href="tricore16P/cache16E.xml"/>
+		<xi:include href="tricore16P/cache16P.xml"/>
 	</xsl:if>
 
 	<!-- pipeline definition -->
@@ -65,36 +66,97 @@
 	<!-- memory definition -->
 	<memory>
 		<banks>
+
+			<!-- xSPR P2-->
 			<bank>
-				<name>PSPR</name> <!-- CPU1 Program Scratchpad RAM /-->
-				<address><offset>0x60100000</offset></address>
-				<xsl:if test="$core=0">
-					<size>0x00008000</size> <!-- 32 KBytes /-->
-				</xsl:if>
-				<xsl:if test="$core=1">
-					<size>0x00006000</size> <!-- 24 KBytes /-->
-				</xsl:if>
+				<name>DSPR P2</name>
+				<address>0x50000000</address>
+				<size>0x00122880</size> <!-- 120 KBytes /-->
 				<type>SPM</type>
-				<latency>1</latency>
-				<write_latency>1</write_latency>
 				<writable>true</writable>
-				<cachable>true</cachable>
+				<cachable>false</cachable>
+				<xsl:if test="$core=2">
+					<latency>1</latency>
+				</xsl:if>
+				<xsl:if test="$core!=2">
+					<latency>3</latency>				<!-- TODO -->
+				</xsl:if>
 			</bank>
 			<bank>
-				<name>DSPR</name> <!-- CPU1 Data Scratchpad RAM /-->
-				<address><offset>0x60000000</offset></address>
-				<xsl:if test="$core=0">
-					<size>0x00122880</size> <!-- 120 KBytes /-->
-				</xsl:if>
-				<xsl:if test="$core=1">
-					<size>0x00114688</size> <!-- 112 KBytes /-->
-				</xsl:if>
+				<name>PSPR P2</name>
+				<address>0x50100000</address>
+				<size>0x00008000</size> <!-- 32 KBytes /-->
 				<type>SPM</type>
-				<latency>1</latency>
-				<write_latency>1</write_latency>
 				<writable>true</writable>
-				<cachable>true</cachable>
+				<cachable>false</cachable>
+				<xsl:if test="$core=2">
+					<latency>1</latency>
+				</xsl:if>
+				<xsl:if test="$core!=2">
+					<latency>3</latency>				<!-- TODO -->
+				</xsl:if>
 			</bank>
+			
+			<!--  xSPR P1 -->
+			<bank>
+				<name>DSPR P1</name>
+				<address>0x60000000</address>
+				<size>0x00122880</size> <!-- 120 KBytes /-->
+				<type>SPM</type>
+				<writable>true</writable>
+				<cachable>false</cachable>
+				<xsl:if test="$core=1">
+					<latency>1</latency>
+				</xsl:if>
+				<xsl:if test="$core!=1">
+					<latency>3</latency>				<!-- TODO -->
+				</xsl:if>
+			</bank>
+			<bank>
+				<name>PSPR P1</name>
+				<address>0x60100000</address>
+				<size>0x00008000</size> <!-- 32 KBytes /-->
+				<type>SPM</type>
+				<writable>true</writable>
+				<cachable>false</cachable>
+				<xsl:if test="$core=1">
+					<latency>1</latency>
+				</xsl:if>
+				<xsl:if test="$core!=1">
+					<latency>3</latency>				<!-- TODO -->
+				</xsl:if>
+			</bank>
+			
+			<!--  xSPR E -->
+			<bank>
+				<name>DSPR E</name>
+				<address>0x70000000</address>
+				<size>0x00114688</size> <!-- 112 KBytes /-->
+				<type>SPM</type>
+				<writable>true</writable>
+				<cachable>false</cachable>
+				<xsl:if test="$core=1">
+					<latency>1</latency>
+				</xsl:if>
+				<xsl:if test="$core!=1">
+					<latency>3</latency>				<!-- TODO -->
+				</xsl:if>
+			</bank>
+			<bank>
+				<name>PSPR E</name>
+				<address>0x70100000</address>
+				<size>0x00006000</size> <!-- 24 KBytes /-->
+				<type>SPM</type>
+				<writable>true</writable>
+				<cachable>false</cachable>
+				<xsl:if test="$core=1">
+					<latency>1</latency>
+				</xsl:if>
+				<xsl:if test="$core!=1">
+					<latency>3</latency>				<!-- TODO -->
+				</xsl:if>
+			</bank>
+			
 			<bank>
 				<name>SRAM</name>   <!--LMU sram cachable-->
 				<address><offset>0x90000000</offset></address>
