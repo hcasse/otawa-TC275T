@@ -29,7 +29,7 @@ typedef enum {
 /*
  * TIMING of Instructions
  *
- * In the Aurix documentation, each instruction timingis defined
+ * In the Aurix documentation, each instruction timings are defined
  * by four numbers (lP, lE, rP, rE) that means:
  *   * result latency core P, core E,
  *   * repear rate core P, core E
@@ -38,7 +38,7 @@ typedef enum {
  * 	 * core P	MAC					bit processor		ALU
  * 	 			xxx					Address ALU			EA (memory)
  * 	 			xxx					xxx					loop execution
- *	 * core		MAC					bit processor		ALU
+ *	 * core E	MAC					bit processor		ALU
  * 	 			loop execution		Address ALU			EA (memory)
  *
  * These number could be interpreted as follows:
@@ -324,7 +324,6 @@ public:
 	/**
 	 */
 	virtual ParExePipeline *pipeline(ParExeStage *stage, ParExeInst *inst) {
-		cerr << "DEBUG: here: " << inst->inst() << io::endl;
 		switch(tricore_pipe(info, inst->inst())) {
 		case IP:	return ip;
 		case LS:	return ls;
@@ -478,6 +477,7 @@ public:
 		produce(inst->inst(), addr_node, regs);
 		for(int i = 0; i < regs.length(); i++)
 			produce(regs[i], mem_node);
+		mem_node->setLatency(tricore_prod(info, inst->inst(), this));
 	}
 
 	/**
@@ -560,6 +560,11 @@ private:
 
 };
 
+/**
+ * Determine the type of core.
+ */
+Identifier<int> CORE("continental::tricore16P::CORE", 1);
+
 class BBTimer: public etime::EdgeTimeBuilder {
 public:
 	static p::declare reg;
@@ -568,15 +573,22 @@ public:
 protected:
 	virtual ParExeGraph *make(ParExeSequence *seq) {
 		PropList props;
-		ParExeGraph *graph = new ExeGraph(this->workspace(), _microprocessor, seq, props);
+		ParExeGraph *graph = new ExeGraph(this->workspace(), _microprocessor, seq, props, core == 0);
 		graph->build(seq);
 		return graph;
+	}
+
+	virtual void configure(const PropList& props) {
+		etime::EdgeTimeBuilder::configure(props);
+		core = CORE(props);
 	}
 
 	virtual void clean(ParExeGraph *graph) {
 		delete graph;
 	}
 
+private:
+	int core;
 };
 
 p::declare BBTimer::reg = p::init("continental::tricore16P::BBTimer", Version(1, 0, 0))

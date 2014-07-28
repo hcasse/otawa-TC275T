@@ -331,6 +331,7 @@
 		<xsl:if test="$gpath!=''">
 			<config name="otawa::GRAPHS_OUTPUT_DIRECTORY" value="{$gpath}"/>
 		</xsl:if>
+		<config name="continental::tricore16P::CORE" value="{$core}"/>
 	</step>
 	<!--step require="otawa::ipet::EDGE_TIME_FEATURE"/-->
 	<step require="otawa::ipet::WCET_FEATURE"/>
