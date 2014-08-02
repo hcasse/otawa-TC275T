@@ -97,8 +97,8 @@ public:
 	virtual etime::occurrence_t occurrence(void) const {
 		switch(pf) {
 		case PF_NC:		return etime::SOMETIMES;
-		case PF_ALWAYS:	return etime::ALWAYS;
-		case PF_NEVER:	return etime::NEVER;
+		case PF_ALWAYS:	return etime::NEVER;	// this occurrence describes the high time frequency (always pre-feched -> never long time to prefetch)
+		case PF_NEVER:	return etime::ALWAYS;	// this occurrence describes the high time frequency (never pre-feched -> always long time to prefetch)
 		default:		ASSERT(false); return etime::SOMETIMES;
 		}
 	}
