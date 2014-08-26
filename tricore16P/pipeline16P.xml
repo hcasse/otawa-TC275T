@@ -39,12 +39,18 @@
 		</stage>
 		<stage id="F2">
 			<name>F2</name>
-			<width>3</width>
+			<width>
+				<xsl:if test="$core=0">1</xsl:if>
+				<xsl:if test="$core!=0">3</xsl:if>
+			</width>
 			<type>LAZY</type>
 		</stage>
 		<stage id="EX">
 			<name>E1</name>
-			<width>3</width>
+			<width>
+				<xsl:if test="$core=0">1</xsl:if>
+				<xsl:if test="$core!=0">3</xsl:if>
+			</width>
 			<type>EXEC</type>
 			<ordered>true</ordered>
 			<fus>
@@ -97,7 +103,10 @@
 		</stage>
 		<stage id="CM">
 			<name>E2</name>		<!-- TODO rename CM -->
-			<width>3</width>
+			<width>
+				<xsl:if test="$core=0">1</xsl:if>
+				<xsl:if test="$core!=0">3</xsl:if>
+			</width>
 			<type>COMMIT</type>
 		</stage>
 	</stages>
