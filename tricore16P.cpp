@@ -264,8 +264,10 @@ public:
 		bool coreE = false)
 	: otawa::ParExeGraph(ws, proc, seq, props), D(0), A(0), cur_inst(0), PSW(0), _coreE(coreE), ip(0), ls(0), lp(0), fp(0)
 	{
-		this->setBranchPenalty(0);
 		info = gliss::INFO(_ws->process());
+
+		// set branch penalty
+		setBranchPenalty(0);
 
 		// look for register banks
 		const hard::Platform::banks_t &banks = ws->process()->platform()->banks();
@@ -357,6 +359,55 @@ public:
 		findExeAt(cur_inst, stage)->setLatency(delay);
 	}
 
+	void addEdgesForFetch(void) {
+
+		// common part
+		ParExeGraph::addEdgesForFetch();
+		if(!isCoreE())
+			return;
+
+		// core E: simple static branch prediction scheme.
+		//
+		// Prediction Policy
+		// (a) 	16 bit instruction format (either direction) and 32 bit format backwards
+		//		conditional branches are predicted taken.
+		// (b)	32 bit format forwards conditional branches are predicted not taken.
+		//
+		// Latencies
+		// * correctly predicted, not taken: 1
+		// * correctly predicted, taken: 2
+		// * incorrectly predicted: 3
+		ParExeInst *prev = 0;
+		for(InstIterator inst(this); inst; inst++) {
+			if(prev && prev->inst()->isControl()) {
+				ot::time delay;
+
+				// type determination
+				bool taken =
+						   inst->inst()->size() == 2
+						|| !prev->inst()->target()		// indirect branch considered mispredicted
+						|| prev->inst()->target()->address() < prev->inst()->topAddress();
+
+				// branching
+				bool branching = prev->inst()->topAddress() != inst->inst()->address();
+
+				// look prediction
+				if(taken != branching)
+					delay = 3;		// misprediction
+				else if(branching)
+					delay = 2;		// branch good prediction
+				else
+					delay = 1;		// sequence good prediction
+
+				// create the edge
+				static string msg = "static branch prediction";
+				if(delay >= 2)
+					new ParExeEdge(prev->node(1), inst->fetchNode(), ParExeEdge::SOLID, delay - 2, msg);
+			}
+			prev = *inst;
+		}
+	}
+
 	virtual void addEdgesForMemoryOrder(void) { }
 
 	virtual void findDataDependencies(void) {
@@ -380,7 +431,7 @@ public:
 					dependenciesForBranch(inst);
 			}
 			else
-				this->dependenciesForALU(inst);
+				dependenciesForALU(inst);
 		}
 	}
 
