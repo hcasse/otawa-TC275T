@@ -135,10 +135,10 @@
 				<type>SPM</type>
 				<writable>true</writable>
 				<cachable>false</cachable>
-				<xsl:if test="$core=1">
+				<xsl:if test="$core=0">
 					<latency>1</latency>
 				</xsl:if>
-				<xsl:if test="$core!=1">
+				<xsl:if test="$core!=0">
 					<latency>3</latency>				<!-- TODO -->
 				</xsl:if>
 			</bank>
@@ -149,10 +149,10 @@
 				<type>SPM</type>
 				<writable>true</writable>
 				<cachable>false</cachable>
-				<xsl:if test="$core=1">
+				<xsl:if test="$core=0">
 					<latency>1</latency>
 				</xsl:if>
-				<xsl:if test="$core!=1">
+				<xsl:if test="$core!=0">
 					<latency>3</latency>				<!-- TODO -->
 				</xsl:if>
 			</bank>

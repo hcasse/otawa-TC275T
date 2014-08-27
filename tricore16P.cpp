@@ -8,6 +8,7 @@
 #include <otawa/etime/features.h>
 #include <otawa/cache/cat2/features.h>
 #include <otawa/cfg/features.h>
+#include <elm/avl/Map.h>
 
 
 using namespace otawa;
@@ -313,6 +314,11 @@ public:
 		ASSERT(ls);
 		ASSERT(lp);
 		ASSERT(fp);
+
+		// compute worst_mem_delay
+		const hard::Memory *mem = hard::MEMORY(ws);
+		ASSERT(mem);
+		worst_mem_delay = mem->worstAccess();
 	}
 
 	virtual ~ExeGraph(void) { }
@@ -357,6 +363,32 @@ public:
 	 */
 	void setDelay(int stage, int delay) {
 		findExeAt(cur_inst, stage)->setLatency(delay);
+	}
+
+	void addEdgesForProgramOrder(elm::genstruct::SLList<ParExeStage *> *list_of_stages) {
+		ParExeGraph::addEdgesForProgramOrder(list_of_stages);
+
+		// prepare map
+		genstruct::HashTable<ParExeStage *, ParExeNode *> nodes;
+		ParExePipeline *pipes[] = { ip, ls, lp, fp };
+		for(int i = 0; i < 4; i++) {
+			ParExePipeline::StageIterator stage(pipes[i]);
+			stage++;
+			nodes.put(*stage, 0);
+			stage++;
+			nodes.put(*stage, 0);
+		}
+
+		// add missing edges
+		for(InstIterator inst(this); inst; inst++)
+			for(ParExeInst::NodeIterator node(inst); node; node++) {
+				Option<ParExeNode *> prev = nodes.get(node->stage());
+				if(prev) {
+					if(*prev)
+						new ParExeEdge(*prev, *node, ParExeEdge::SOLID);
+					nodes.put(node->stage(), *node);
+				}
+			}
 	}
 
 	void addEdgesForFetch(void) {
@@ -412,6 +444,7 @@ public:
 
 	virtual void findDataDependencies(void) {
 		for(InstIterator inst(this); inst; inst++) {
+			//cerr << "DEBUG: " << inst->inst() << io::endl;
 			if(inst->inst()->isMem()) {
 				if(inst->inst()->isLoad()) {
 					if(inst->inst()->isStore())
@@ -458,6 +491,7 @@ public:
 	 * @param node	Consumer.
 	 */
 	void consume(const hard::Register *reg, ParExeNode *node) {
+		//cerr << "DEBUG:\tconsume " << reg->name() << io::endl;
 		ParExeNode *producer = regs[reg->platformNumber()];
 		if(producer != NULL) {
 			node->addProducer(producer);
@@ -488,6 +522,7 @@ public:
 	 * @param nod	Producer.
 	 */
 	void produce(const hard::Register *reg, ParExeNode *node) {
+		//cerr << "DEBUG:\tproduce " << reg->name() << io::endl;
 		regs[reg->platformNumber()] = node;
 	}
 
@@ -521,14 +556,23 @@ public:
 	void dependenciesForLoad(ParExeInst *inst) {
 		ParExeNode *addr_node = findExeAt(inst, 1);
 		ParExeNode *mem_node = findExeAt(inst, 2);
+
+		// consume registers
 		reg_set_t null;
 		consume(inst->inst(), addr_node, null);
+
+		// produce registers
 		reg_set_t regs;
 		regOf(tricore_mreg(info, inst->inst()), regs);
-		produce(inst->inst(), addr_node, regs);
 		for(int i = 0; i < regs.length(); i++)
 			produce(regs[i], mem_node);
-		mem_node->setLatency(tricore_prod(info, inst->inst(), this));
+		produce(inst->inst(), addr_node, regs);
+
+		// time
+		mem_node->setLatency(
+			tricore_prod(info, inst->inst(), this)
+			+ worst_mem_delay
+			- 1);
 	}
 
 	/**
@@ -538,13 +582,23 @@ public:
 	void dependenciesForStore(ParExeInst *inst) {
 		ParExeNode *addr_node = findExeAt(inst, 1);
 		ParExeNode *mem_node = findExeAt(inst, 2);
+
+		// consume registers
 		reg_set_t regs;
 		regOf(tricore_mreg(info, inst->inst()), regs);
+		for(int i = 0; i < regs.length(); i++)
+			consume(regs[i], mem_node);
 		consume(inst->inst(), addr_node, regs);
+
+		// produce registers
 		reg_set_t null;
 		produce(inst->inst(), addr_node, null);
-		for(int i = 0; i < regs.length(); i++)
-			produce(regs[i], mem_node);
+
+		// time
+		mem_node->setLatency(
+			tricore_prod(info, inst->inst(), this) + 1
+			+ worst_mem_delay
+			- 1);
 	}
 
 	/**
@@ -589,6 +643,7 @@ private:
 	otawa::ParExeInst *cur_inst;
 	bool _coreE;
 	ParExePipeline *ip, *ls, *lp, *fp;
+	int worst_mem_delay;
 
 	/**
 	 * Find a specific execution stage.
