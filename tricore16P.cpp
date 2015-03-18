@@ -105,6 +105,7 @@ public:
 	}
 
 	virtual cstring name(void) const { return "PFlash Prefetch"; }
+	virtual string detail(void) const { return name(); }
 
 	virtual bool isEstimating(bool on) { return on; }
 
