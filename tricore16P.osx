@@ -123,7 +123,7 @@
 					<latency>1</latency>
 				</xsl:if>
 				<xsl:if test="$core!=1">
-					<latency>3</latency>				<!-- TODO -->
+					<latency>3</latency>				<!-- TODO -> 6-7 c -->
 				</xsl:if>
 			</bank>
 			
@@ -162,8 +162,8 @@
 				<address><offset>0x90000000</offset></address>
 				<size>0x00040000</size> <!-- 32 KBytes /-->
 				<type>SPM</type>
-				<latency>2</latency>
-				<write_latency>2</write_latency>
+				<latency>2</latency>				<!-- 6-7 cycles -->
+				<write_latency>2</write_latency>	<!--  -->
 				<writable>true</writable>
 				<cachable>true</cachable>
 			</bank>
