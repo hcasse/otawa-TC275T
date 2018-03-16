@@ -1,0 +1,67 @@
+Memory maps
+
+segment 13
+PSPR (32 KB) adresse : 0xC8000000 size : 0x00040000
+ICACHE (16 KB) adresse : 0xC8200000 size : 0x00020000
+DSPR (128 KB) adresse : 0xD0000000 size : 0x00100000
+DCACHE (16 KB) adresse : 0xD0200000 size : 0x00020000
+
+Segment 8
+cachable PFLASH et BROM
+PFlASH0 (2 MB cachable) adresse : 0x80000000 size : 0x01000000
+PFlASH1 (2 MB cachable) adresse : 0x80800000 size : 0x01000000
+BROM (16 KB : cachable)  adresse : 0x8FFFC000 size : 0x00020000
+
+Segment 10
+PFlASH0 (2 MB non cachable) adresse : 0xA0000000 size : 0x01000000
+PFlASH1 (2 MB non cachable) adresse : 0xA0800000 size : 0x01000000
+DFLASH0 (96 MB non cachable) adresse : 0xAF000000 size : 0x000C0000
+DFLASH1 (96 MB non cachable) adresse : 0xAF080000 size : 0x000C0000
+BROM (16 KB : non cachable)  adresse : 0xAFFFC000 size : 0x00020000
+
+Segment 9
+cachable SRAM
+SRAM (128 KB cachable) adresse : 0x90000000 size : 0x00100000
+
+Segment 11
+SRAM (128 KB : non cachable) adresse : 0xB0000000 size : 0x00100000
+
+
+Intruction cache
+
+• 16 Kbyte Program Cache (ICACHE)
+  – Four-way set associative cache
+  – PLRU (Pseudo Least-Recently Used) replacement algorithm
+  – Cache line size: 256 bits (4 double-words)
+  – Validity granularity: One valid bit per cache line
+  – ICACHE can be globally invalidated to provide support for software cache
+    coherency (to be handled by the programmer)
+  – ICACHE can be bypassed to provide a direct fetch from the CPU to on-chip and
+    off-chip resources
+  – ICACHE refill mechanism:
+    Critical word first, line wrap around, streaming to CPU
+
+Data cache
+
+• 16 Kbyte Data Memory (DCACHE):
+  – Four-way set associative cache, Pseudo least recently used (PLRU) replacement
+    algorithm
+  – Cache line size: 256 bits
+  – Validity granularity: One valid bit per cache line
+  – Write-back Cache: Writeback granularity: 256 bits
+  – Refill mechanism: full cache line refill
+  
+  
+I/O memory 
+
+18 ports: chacun 256 octets
+deux bancs: port 0 jusqu'à port 11 et port 12 jusqu'à port 18
+IO0 (12x256 bytes) adresse : 0xF0000C00 size 0x00006000
+IO1 (7x256 bytes) adresse  : 0xF0300C00 size 0x00003800
+
+
+Flash (TC1798:page 492)
+
+Flash banks that are active and in read mode can be directly read as ROM.
+The wait cycles for the Flash access must be configured as defined in the data sheet or
+in the chapter “Electrical Parameters”.
