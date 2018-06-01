@@ -166,7 +166,8 @@ extend shas_const , shas_reg
 
 //coprocessor inst
 extend 	bmerge , bsplit , parity , pack , ixmin_u , ixmin , ixmax , ixmax_u ,
-		unpack , crc32
+		unpack
+// crc32
 	prod = 1 
 	pipe = IP
 	
@@ -507,10 +508,10 @@ extend ldmst_abs, ldmst_bo10 , ldmst_post , ldmst_pre , ldmst_br , ldmst_circ
 	pipe = LS
 
 //swapmsk
-extend swapmsk_bo , swapmsk_rev , swapmsk_circ , swapmsk_post , swapmsk_pre
+/*extend swapmsk_bo , swapmsk_rev , swapmsk_circ , swapmsk_post , swapmsk_pre
 	prod = 2
 	mreg = R(E, a.i)
-	pipe = LS
+	pipe = LS*/
 
 //swap.w
 extend swap_abs , swap_bo10 , swap_br , swap_ca , swap_post , swap_pre
@@ -519,10 +520,10 @@ extend swap_abs , swap_bo10 , swap_br , swap_ca , swap_post , swap_pre
 	pipe = LS
 
 //cmpswap
-extend cmpswap_w_off , cmpswap_w_rev , cmpswap_w_ca , cmpswap_w_post , cmpswap_w_pre
+/*extend cmpswap_w_off , cmpswap_w_rev , cmpswap_w_ca , cmpswap_w_post , cmpswap_w_pre
 	prod = 2
 	mreg = R(E, a.i)
-	pipe = LS
+	pipe = LS*/
 
 //st.t
 extend st_t
@@ -597,7 +598,8 @@ extend loop , loop_16 , loopu
 // Other instructions
 ///////////////////////
 
-extend debug , debug16 , disable , disable2 , dsync , enable , isync , not16 , restore , rstv , trapv , trapsv , wait
+extend debug , debug16 , disable , disable2 , dsync , enable , isync , not16 , restore , rstv , trapv , trapsv
+// wait
 	prod = 0
 	pipe = LS
 

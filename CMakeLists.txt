@@ -26,6 +26,16 @@ set(MODULES	)				# used modules (to pass to otawa-config=
 set(SOURCES 	tricore16P.cpp prod16P.h mreg.h pipe.h)				# sources of the plugin
 
 
+# C++ 11
+if(CMAKE_VERSION LESS "3.1")
+	add_compile_options(--std=c++11)
+	message(STATUS "C++11 set using cflags")
+else()
+	set(CMAKE_CXX_STANDARD 11)
+	message(STATUS "C++ set using CMAKE_CXX_STANDARD")
+endif()
+
+
 # generation of prods
 set(TRICORE_IRG	"${CMAKE_SOURCE_DIR}/../tricore/tricore.irg")
 set(GLISS_ATTR	"${CMAKE_SOURCE_DIR}/../gliss2/gep/gliss-attr")
