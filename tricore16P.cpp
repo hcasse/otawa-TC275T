@@ -152,7 +152,8 @@ protected:
 	virtual void processBB(WorkSpace *ws, CFG *cfg, Block *b) {
 
 		if(!b->isBasic())
-			ASSERTP(0, _ << b << " is not a basic block.");
+			return;
+			// ASSERTP(0, << b << " is not a basic block.");
 
 		BasicBlock *bb = b->toBasic();
 
@@ -229,6 +230,10 @@ private:
 		// find last LBlock of previous BBlock
 		else {
 			for(BasicBlock::EdgeIter edge = bb->ins(); edge; edge++) {
+
+				if(!edge->source()->isBasic())
+					continue;
+
 				BasicBlock *inbb = edge->source()->toBasic(); // FIXME: if not a basic block and then...?
 
 				// not in sequence: never prefetched
