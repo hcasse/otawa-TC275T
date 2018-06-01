@@ -1,13 +1,15 @@
 #include <otawa/parexegraph/GraphBBTime.h>
 #include <otawa/parexegraph/ParExeGraph.h>
 #include <otawa/proc/ProcessorPlugin.h>
+#include <otawa/proc/BBProcessor.h>
 #include <otawa/branch/BranchBuilder.h>
-#include <otawa/util/LBlockBuilder.h>
+// 	#include <otawa/util/LBlockBuilder.h>
 #include <otawa/branch/features.h>
 #include <otawa/etime/EdgeTimeBuilder.h>
 #include <otawa/etime/features.h>
 #include <otawa/cache/cat2/features.h>
 #include <otawa/cfg/features.h>
+#include <otawa/loader/gliss.h>
 #include <elm/avl/Map.h>
 
 
@@ -89,11 +91,14 @@ io::Output& operator<<(io::Output& out, pf_t p) {
 
 class PrefetchEvent: public otawa::etime::Event {
 public:
-	PrefetchEvent(Inst *inst, pf_t prefetch, LBlock *lblock): Event(inst), pf(prefetch), lb(lblock) { }
-
+	PrefetchEvent(Inst *inst, pf_t prefetch, LBlock *lblock): Event(inst, etime::NO_PLACE), pf(prefetch), lb(lblock) { }
+	// the Event in general is associated with the edge
+	// if it is not the case, the Event will be associated with where the instruction
+	// belongs to, e.g. the PREFIX or the BLOCK
+	// FIXME for the moment being, the 'place' for Event will be NO_PLACE
 	virtual etime::kind_t kind(void) const { return etime::FETCH; }
 	virtual ot::time cost(void) const { return 0; }		// TO DO
-	virtual etime::type_t type(void) const { return etime::BLOCK; }
+	virtual etime::type_t type(void) const { return etime::LOCAL; /* etime::BLOCK; */ }
 
 	virtual etime::occurrence_t occurrence(void) const {
 		switch(pf) {
@@ -116,11 +121,14 @@ public:
 	}
 
 	virtual int weight(void) const {
-		switch(otawa::CATEGORY(lb)) {
+		switch(cache::CATEGORY(lb)) {
 		case INVALID_CATEGORY:		ASSERT(false); return 0;
 		case ALWAYS_HIT:			return 0;
-		case FIRST_MISS:
-			{ BasicBlock *pbb = ENCLOSING_LOOP_HEADER(otawa::CATEGORY_HEADER(lb)); if(pbb) return WEIGHT(pbb); else return 1; }
+		case FIRST_MISS: {
+				Block *b = ENCLOSING_LOOP_HEADER(cache::CATEGORY_HEADER(lb));
+				BasicBlock *pbb = b->toBasic();
+				if(pbb) return WEIGHT(pbb); else return 1;
+			}
 		case ALWAYS_MISS:
 		case FIRST_HIT:
 		case NOT_CLASSIFIED:		return WEIGHT(lb->bb());
@@ -141,12 +149,20 @@ public:
 
 protected:
 
-	virtual void processBB(WorkSpace *ws, CFG *cfg, BasicBlock *bb) {
+	virtual void processBB(WorkSpace *ws, CFG *cfg, Block *b) {
+
+		if(!b->isBasic())
+			ASSERTP(0, _ << b << " is not a basic block.");
+
+		BasicBlock *bb = b->toBasic();
+
 		if(bb->isEnd())
 			return;
 
+
 		// get L-Blocks
-		genstruct::AllocatedTable<LBlock* >* blocks = BB_LBLOCKS(bb);
+		// genstruct::AllocatedTable<LBlock* >* blocks = BB_LBLOCKS(bb);
+		AllocArray<LBlock* >* blocks = BB_LBLOCKS(bb);
 
 		// process each BB
 		for(int i = 0; i < blocks->size(); i++){
@@ -189,7 +205,8 @@ private:
 			return PF_NC;
 	}
 
-	pf_t findPrefetchCategory(int i, genstruct::AllocatedTable<LBlock* >* blocks, BasicBlock *bb) {
+	// pf_t findPrefetchCategory(int i, genstruct::AllocatedTable<LBlock* >* blocks, BasicBlock *bb) {
+	pf_t findPrefetchCategory(int i, AllocArray<LBlock* >* blocks, BasicBlock *bb) {
 		pf_t prefetch_cat = PF_NONE;
 		LBlock *block;
 
@@ -211,9 +228,8 @@ private:
 
 		// find last LBlock of previous BBlock
 		else {
-
-			for(BasicBlock::InIterator edge(bb); edge; edge++) {
-				BasicBlock *inbb = edge->source();
+			for(BasicBlock::EdgeIter edge = bb->ins(); edge; edge++) {
+				BasicBlock *inbb = edge->source()->toBasic(); // FIXME: if not a basic block and then...?
 
 				// not in sequence: never prefetched
 				if(inbb->topAddress() != bb->address())
@@ -223,7 +239,8 @@ private:
 				else {
 
 					// get last LBlock of previous BB category
-					genstruct::AllocatedTable<LBlock* >* blocks_prev = BB_LBLOCKS(inbb);
+					// genstruct::AllocatedTable<LBlock* >* blocks_prev = BB_LBLOCKS(inbb);
+					AllocArray<LBlock* >* blocks_prev = BB_LBLOCKS(inbb);
 					LBlock *block_prev = blocks_prev->get(blocks_prev->size()-1);
 					cache::category_t cat = cache::CATEGORY(block_prev);
 
@@ -249,27 +266,28 @@ Feature<PrefetchCategoryAnalysis> PREFETCH_CATEGORY_FEATURE("continental::tricor
 
 
 p::declare PrefetchCategoryAnalysis::reg = p::init("continental::tricore16P::PrefetchCategoryAnalysis", Version(1, 0, 0))
-	.maker<PrefetchCategoryAnalysis>()
-	.base(BBProcessor::reg)
+	.make<PrefetchCategoryAnalysis>()
 	.provide(PREFETCH_CATEGORY_FEATURE)
 	.require(otawa::ICACHE_CATEGORY2_FEATURE);
 
-class ExeGraph: public ParExeGraph {
+class ExeGraph: public etime::EdgeTimeGraph {
 public:
 	typedef genstruct::Vector<const hard::Register *> reg_set_t;
 
 	ExeGraph(
 		WorkSpace *ws,
 		ParExeProc *proc,
+		elm::genstruct::Vector<Resource *> *hw_resources,
 		ParExeSequence *seq,
 		const PropList &props = PropList::EMPTY,
 		bool coreE = false)
-	: otawa::ParExeGraph(ws, proc, seq, props), D(0), A(0), cur_inst(0), PSW(0), _coreE(coreE), ip(0), ls(0), lp(0), fp(0)
+	: etime::EdgeTimeGraph(ws, proc, hw_resources, seq, props), D(0), A(0), cur_inst(0), PSW(0), _coreE(coreE), ip(0), ls(0), lp(0), fp(0)
 	{
 		info = gliss::INFO(_ws->process());
 
 		// set branch penalty
-		setBranchPenalty(0);
+		// setBranchPenalty(0);
+		// FIXME: what is a branch penalty
 
 		// look for register banks
 		const hard::Platform::banks_t &banks = ws->process()->platform()->banks();
@@ -456,7 +474,7 @@ public:
 				else
 					dependenciesForStore(inst);
 			}
-			else if(inst->inst()->meets(Inst::IS_FLOAT))
+			else if(inst->inst()->getKind().meets(Inst::IS_FLOAT))
 				dependenciesForFloat(inst);
 			else if(inst->inst()->isControl()) {
 				if(tricore_prod(info, inst->inst(), _coreE) < 0)
@@ -678,11 +696,17 @@ public:
 	BBTimer(void): etime::EdgeTimeBuilder(reg) { }
 
 protected:
-	virtual ParExeGraph *make(ParExeSequence *seq) {
+	virtual etime::EdgeTimeGraph *make(ParExeSequence *seq) {
 		PropList props;
-		ParExeGraph *graph = new ExeGraph(this->workspace(), _microprocessor, seq, props, core == 0);
-		graph->build(seq);
+
+		ExeGraph *graph = new ExeGraph(this->workspace(), _microprocessor, ressources(), seq, props, core == 0);
+		graph->build();
 		return graph;
+	}
+
+	// Don't build resources for hardware stages or queues
+	virtual void BuildVectorOfHwResources() {
+		_hw_resources.add(new StartResource("start", 0)); // build the start resource
 	}
 
 	virtual void configure(const PropList& props) {
@@ -698,6 +722,7 @@ private:
 	int core;
 };
 
+
 p::declare BBTimer::reg = p::init("continental::tricore16P::BBTimer", Version(1, 0, 0))
 		.base(etime::EdgeTimeBuilder::reg)
 		.require(otawa::hard::CACHE_CONFIGURATION_FEATURE)
@@ -708,13 +733,25 @@ p::declare BBTimer::reg = p::init("continental::tricore16P::BBTimer", Version(1,
 
 class Plugin: public ProcessorPlugin {
 public:
-	typedef elm::genstruct::Table<AbstractRegistration * > procs_t;
+	//typedef elm::genstruct::Table<AbstractRegistration * > procs_t;
 
-	Plugin(void): ProcessorPlugin("continental::tricore16P", Version(1, 0, 0), OTAWA_PROC_VERSION) { }
-	virtual procs_t& processors (void) const { return procs_t::EMPTY; };
+	//Plugin(void): ProcessorPlugin("continental::tricore16P", Version(1, 0, 0), OTAWA_PROC_VERSION) { }
+	//virtual procs_t& processors (void) const { return procs_t::EMPTY; };
+
+	typedef elm::genstruct::Table<AbstractRegistration *> procs_t;
+
+	Plugin(void): ProcessorPlugin(make("continental::tricore16P", OTAWA_PROC_VERSION)
+		.version(1, 0, 0)
+		.description("timing analyses for TriCore")
+		.license(Manager::copyright)) {
+	}
+
 };
 
 } }	// continental::tricore16P
 
-continental::tricore16P::Plugin OTAWA_PROC_HOOK;
-continental::tricore16P::Plugin& contintal_tricore = OTAWA_PROC_HOOK;
+continental::tricore16P::Plugin contintal_tricore;
+ELM_PLUGIN(contintal_tricore, OTAWA_PROC_HOOK);
+
+
+
