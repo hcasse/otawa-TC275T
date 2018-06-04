@@ -325,25 +325,34 @@
 	
 	
 	<step require="otawa::VIRTUALIZED_CFG_FEATURE"/>
-	
+
 	<xsl:if test="$core!=0">
 		<step require="otawa::branch::CATEGORY_FEATURE"/>
 	</xsl:if>
 	
-	
+		
 	<step require="otawa::ICACHE_CATEGORY2_FEATURE"/>
 	
 	
 	<step require="continental::tricore16P::PREFETCH_CATEGORY_FEATURE"/>
-	
+ 
+ 
+ 
 	<step require="otawa::ICACHE_ONLY_CONSTRAINT2_FEATURE"/>
 
+ 
 	<step processor="continental::tricore16P::BBTimer">
 		<xsl:if test="$gpath!=''">
 			<config name="otawa::GRAPHS_OUTPUT_DIRECTORY" value="{$gpath}"/>
 		</xsl:if>
 		<config name="continental::tricore16P::CORE" value="{$core}"/>
 	</step>
+	 
+
+	
+	
+	
+	
 	<!--step require="otawa::ipet::EDGE_TIME_FEATURE"/-->
 	<step require="otawa::ipet::WCET_FEATURE"/>
 
