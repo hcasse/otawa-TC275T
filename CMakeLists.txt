@@ -24,7 +24,7 @@ set(SCRIPT		"tricore16P")		# machine model
 set(NAMESPACE	"continental")	# namespace (classes must be contained in the namespace otawa::model)
 set(FILES		pipeline16P.xml mem.xml cache16P.xml cache16E.xml)				# cache, pipeline, memory
 set(MODULES	)				# used modules (to pass to otawa-config=
-set(SOURCES 	 tricore16P.cpp prod16P.h mreg.h pipe.h)				# sources of the plugin
+set(SOURCES 	verification.cpp tricore16P.cpp prod16P.h mreg.h pipe.h)				# sources of the plugin
 
 
 # C++ 11

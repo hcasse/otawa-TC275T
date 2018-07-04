@@ -3,14 +3,12 @@
 #include <otawa/proc/ProcessorPlugin.h>
 #include <otawa/proc/BBProcessor.h>
 #include <otawa/branch/BranchBuilder.h>
-// 	#include <otawa/util/LBlockBuilder.h>
 #include <otawa/branch/features.h>
 #include <otawa/etime/EdgeTimeBuilder.h>
 #include <otawa/etime/features.h>
 #include <otawa/cache/cat2/features.h>
 #include <otawa/cfg/features.h>
 #include <otawa/loader/gliss.h>
-//#include <elm/avl/Map.h>
 #include <elm/data/HashMap.h>
 
 using namespace otawa;
