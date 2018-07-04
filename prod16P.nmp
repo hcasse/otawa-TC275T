@@ -324,9 +324,14 @@ extend ld_bu_16_4
 
 
 //ld.d
-extend ld_d_bo10 , ld_d_post , ld_d_abs , ld_d_pre , ld_d_rev , ld_d_circ
+extend ld_d_abs , ld_d_pre , ld_d_rev , ld_d_circ
 	prod = 1
 	mreg = R(D, a.i)
+	pipe = LS
+
+extend ld_d_bo10 , ld_d_post
+	prod = 1
+	mreg = R(D, a.l)
 	pipe = LS
 
 

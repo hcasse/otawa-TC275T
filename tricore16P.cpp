@@ -10,8 +10,8 @@
 #include <otawa/cache/cat2/features.h>
 #include <otawa/cfg/features.h>
 #include <otawa/loader/gliss.h>
-#include <elm/avl/Map.h>
-
+//#include <elm/avl/Map.h>
+#include <elm/data/HashMap.h>
 
 using namespace otawa;
 
@@ -91,7 +91,7 @@ io::Output& operator<<(io::Output& out, pf_t p) {
 
 class PrefetchEvent: public otawa::etime::Event {
 public:
-	PrefetchEvent(Inst *inst, pf_t prefetch, LBlock *lblock): Event(inst, etime::NO_PLACE), pf(prefetch), lb(lblock) { }
+	PrefetchEvent(Inst *inst, pf_t prefetch, LBlock *lblock): Event(inst), pf(prefetch), lb(lblock) { }
 	// the Event in general is associated with the edge
 	// if it is not the case, the Event will be associated with where the instruction
 	// belongs to, e.g. the PREFIX or the BLOCK
@@ -282,7 +282,7 @@ public:
 	ExeGraph(
 		WorkSpace *ws,
 		ParExeProc *proc,
-		elm::genstruct::Vector<Resource *> *hw_resources,
+		elm::Vector<Resource *> *hw_resources,
 		ParExeSequence *seq,
 		const PropList &props = PropList::EMPTY,
 		bool coreE = false)
@@ -389,11 +389,11 @@ public:
 		findExeAt(cur_inst, stage)->setLatency(delay);
 	}
 
-	void addEdgesForProgramOrder(elm::genstruct::SLList<ParExeStage *> *list_of_stages) {
+	void addEdgesForProgramOrder(List<ParExeStage *> *list_of_stages) {
 		ParExeGraph::addEdgesForProgramOrder(list_of_stages);
 
 		// prepare map
-		genstruct::HashTable<ParExeStage *, ParExeNode *> nodes;
+		elm::HashMap<ParExeStage *, ParExeNode *> nodes;
 		ParExePipeline *pipes[] = { ip, ls, lp, fp };
 		for(int i = 0; i < 4; i++) {
 			ParExePipeline::StageIterator stage(pipes[i]);

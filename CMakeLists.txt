@@ -24,7 +24,7 @@ set(SCRIPT		"tricore16P")		# machine model
 set(NAMESPACE	"continental")	# namespace (classes must be contained in the namespace otawa::model)
 set(FILES		pipeline16P.xml mem.xml cache16P.xml cache16E.xml)				# cache, pipeline, memory
 set(MODULES	)				# used modules (to pass to otawa-config=
-set(SOURCES 	tricore16P.cpp prod16P.h mreg.h pipe.h)				# sources of the plugin
+set(SOURCES 	 tricore16P.cpp prod16P.h mreg.h pipe.h)				# sources of the plugin
 
 
 # C++ 11
@@ -88,13 +88,15 @@ execute_process(COMMAND "${OTAWA_CONFIG}" --libs ${MODULES}  OUTPUT_VARIABLE OTA
 execute_process(COMMAND "${OTAWA_CONFIG}" --prefix OUTPUT_VARIABLE OTAWA_PREFIX OUTPUT_STRIP_TRAILING_WHITESPACE)
 
 
+set(TARGET_LIB	"${CMAKE_SOURCE_DIR}/../tricore/src/libtricore.a")
+
 # plugin definition
 set(CMAKE_INSTALL_RPATH "\\$ORIGIN/../../../")
 include_directories("${CMAKE_SOURCE_DIR}" "../tricore/include")
 add_library(${SCRIPT} SHARED ${SOURCES})
 set_property(TARGET ${SCRIPT} PROPERTY PREFIX "")
 set_property(TARGET ${SCRIPT} PROPERTY COMPILE_FLAGS "${OTAWA_CFLAGS}")
-target_link_libraries(${SCRIPT} "${OTAWA_LDFLAGS}" "${OTAWA_PREFIX}/lib/otawa/proc/otawa/etime${CMAKE_SHARED_LIBRARY_SUFFIX}")
+target_link_libraries(${SCRIPT} "${OTAWA_LDFLAGS}" "${OTAWA_PREFIX}/lib/otawa/proc/otawa/etime${CMAKE_SHARED_LIBRARY_SUFFIX}"  "${TARGET_LIB}")
 
 # installation
 if(NOT PREFIX)

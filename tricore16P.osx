@@ -321,6 +321,10 @@
 
 </platform>
 <script>
+	<step processor="otawa::clp::CLPAnalysis"></step>
+	<step processor="continental::tricore16P::StateVerifier"></step>
+
+
 	<config name="otawa::ipet::EXPLICIT" value="true"/>
 	
 	
@@ -337,9 +341,7 @@
 	<step require="continental::tricore16P::PREFETCH_CATEGORY_FEATURE"/>
  
  
- 
 	<step require="otawa::ICACHE_ONLY_CONSTRAINT2_FEATURE"/>
-
  
 	<step processor="continental::tricore16P::BBTimer">
 		<xsl:if test="$gpath!=''">
@@ -347,10 +349,8 @@
 		</xsl:if>
 		<config name="continental::tricore16P::CORE" value="{$core}"/>
 	</step>
-	 
+	
 
-	
-	
 	
 	
 	<!--step require="otawa::ipet::EDGE_TIME_FEATURE"/-->
