@@ -83,6 +83,7 @@ protected:
 		CFG* working_cfg = 0;
 		BasicBlock* working_bb = 0;
 		BasicBlock* previous_bb = 0;
+		Inst* working_inst = 0;
 
 		// Visit CFG
 		for(CFGCollection::Iter cfg(cfgs); cfg; cfg++) {
@@ -91,6 +92,7 @@ protected:
 				addressToTrigger = cfg->address();
 				working_cfg = cfg;
 				working_bb = cfg->entry()->outs()->target()->toBasic();
+				working_inst = working_bb->first();
 			}
 			elm::cout << "\tprocess CFG " << cfg->label() << io::endl;
 			for(CFG::BlockIter bb = cfg->blocks(); bb; bb++) {
@@ -283,9 +285,26 @@ protected:
             }
 
             if(following) {
-            	elm::cout << __GREEN__ << "executing " << Address(inst->addr) << " vs " << working_bb->last()->address() << " ";
+            	elm::cout << __GREEN__ << "executing " << Address(inst->addr) << " towards to " << working_bb->last()->address() << " ";
                 tricore_disasm(buffer, inst);
-                elm::cout << buffer << __RESET__ << endl;
+                elm::cout << buffer << " @ " << count << " => ";
+
+                unsigned int codes = 0;
+                unsigned int codesX = 0;
+                tricore_mem_read(sim->state->M, inst->addr, (void*)&codes, 4);
+
+
+                for(int wis = 0; wis < working_inst->size(); wis++) {
+
+                	int shift = (8*(working_inst->size() - wis - 1));
+                	elm::cout <<hex((codes >> shift) &0xFF)<< " ";
+
+                	//elm::cout << hex(codes & 0xFF) << " ";
+                	//codes = codes >> 8;
+
+                }
+                elm::cout << __RESET__ << io::endl;
+
 
 
             	// verify
@@ -304,9 +323,9 @@ protected:
 
         		Inst* currentInst = clpManager.inst();
 
-        		sem::Block sb;
-        		currentInst->semInsts(sb);
-        		sb.print(elm::cout, workspace()->platform());
+//        		sem::Block sb;
+//        		currentInst->semInsts(sb);
+//        		sb.print(elm::cout, workspace()->platform());
 
         		clp::State currentCLPState;
         		if(currentInst->address() == Address(inst->addr)) {
@@ -321,10 +340,8 @@ protected:
 #endif
 						currentCLPState = *(clpManager.state());
 						step = clpManager.next();
-	        			elm::cout << "step = " << step << ", step & ni = " << (step & clp::Manager::NEW_INST) << endl;
-	        			if(step & clp::Manager::NEW_INST) {
+	        			if(step & clp::Manager::NEW_INST)
 	        				break;
-	        			}
 					}
         		}
         		else {
@@ -333,14 +350,6 @@ protected:
         			//ASSERT(0);
         		}
 
-				elm::cout << __CYAN__ << "    ";
-				currentCLPState.print(elm::cout, workspace()->platform());
-				elm::cout << __RESET__ << endl;
-				if(step) {
-					elm::cout << __BLUE__ << "    ";
-					clpManager.state()->print(elm::cout, workspace()->platform());
-					elm::cout << __RESET__ << endl;
-				}
 
         		// check actual state vs abstract state at the end of each instruction
 				for(clp::State::Iter clpsi(currentCLPState); clpsi; clpsi++) {
@@ -359,7 +368,7 @@ protected:
 							actualValue = clp::Value(sim->state->FCX);
 						// now see if the actual value falls into the abstract domain
 						clp::Value actualValue2 = actualValue; // need another value because inter changes the calling object
-						ASSERTP(actualValue2.inter(*clpsi) == actualValue, "BOOMGA REG ID = " << regID << ", actual value = " << actualValue << ", abstract Value = " << (*clpsi));
+						ASSERTP(actualValue2.inter(*clpsi) == actualValue, "@ " << count << " BOOMGA REG ID = " << regID << ", actual value = " << actualValue << ", abstract Value = " << (*clpsi));
 					}
 					else // if it is memory
 						ASSERT(1);
@@ -375,6 +384,7 @@ protected:
     						elm::cout << "Making a call" << endl;
     						working_cfg = outEdge->target()->toSynth()->callee();
     						working_bb = working_cfg->entry()->outs()->target()->toBasic();
+    						working_inst = working_bb->first();
     					}
     					else if (outEdge->target()->isExit()) {
     						elm::cout << "Leaving a call" << endl;
@@ -389,6 +399,7 @@ protected:
     								else if(ciOut->target()->toBasic()->address() == nextAddress) {
     									working_bb = ciOut->target()->toBasic();
     									working_cfg = working_bb->cfg();
+    									working_inst = working_bb->first();
     									break;
     								}
     							}
@@ -397,12 +408,18 @@ protected:
     					else {
     						if(outEdge->target()->toBasic()->first()->address() == nextAddress) {
     							working_bb = outEdge->target()->toBasic();
+    							working_inst = working_bb->first();
     							elm::cout << __RED__ << "    continue to a normal basic block" << __RESET__ << endl;
     							break;
     						}
     					}
     				}
             	} // reaching the end of BB
+            	else {
+            		working_inst = working_inst->nextInst();
+            	}
+
+
 
             	if(Address(sim->state->PC) != 0)
             		ASSERTP((Address(sim->state->PC) >= working_bb->address()) && (Address(sim->state->PC) <= working_bb->last()->address()), "Address " << Address(sim->state->PC) << " is out of the current BB: CFG " << working_cfg->index() << " " << working_bb);
