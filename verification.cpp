@@ -73,6 +73,10 @@ protected:
 	}
 
 	virtual void processWorkSpace(WorkSpace *fw) {
+		unsigned int verifiedReg = 0;
+		unsigned int verifiedMem = 0;
+
+
 
 
 		const CFGCollection *cfgs = INVOLVED_CFGS(fw);
@@ -82,7 +86,7 @@ protected:
 		Address addressToTrigger = 0;
 		CFG* working_cfg = 0;
 		BasicBlock* working_bb = 0;
-		BasicBlock* previous_bb = 0;
+		bool enterNewBB = true;
 		Inst* working_inst = 0;
 
 		// Visit CFG
@@ -97,7 +101,7 @@ protected:
 			elm::cout << "\tprocess CFG " << cfg->label() << io::endl;
 			for(CFG::BlockIter bb = cfg->blocks(); bb; bb++) {
 				elm::cout << "\t\tprocess " << *bb << io::endl;
-				clp::State clpState = clp::STATE_OUT(bb);
+				clp::State clpState = clp::STATE_IN(bb);
 
 				elm::cout << "\t\t\t";
 				clpState.print(elm::cout, workspace()->platform());
@@ -224,6 +228,7 @@ protected:
         clp::Manager clpManager(workspace());
 
 
+        elm::cout << "lino starto" << endl;
 
         while(!tricore_is_sim_ended(sim))
 		{
@@ -285,23 +290,17 @@ protected:
             }
 
             if(following) {
+
+            	// output the instruction info
             	elm::cout << __GREEN__ << "executing " << Address(inst->addr) << " towards to " << working_bb->last()->address() << " ";
                 tricore_disasm(buffer, inst);
                 elm::cout << buffer << " @ " << count << " => ";
-
                 unsigned int codes = 0;
                 unsigned int codesX = 0;
                 tricore_mem_read(sim->state->M, inst->addr, (void*)&codes, 4);
-
-
                 for(int wis = 0; wis < working_inst->size(); wis++) {
-
                 	int shift = (8*(working_inst->size() - wis - 1));
                 	elm::cout <<hex((codes >> shift) &0xFF)<< " ";
-
-                	//elm::cout << hex(codes & 0xFF) << " ";
-                	//codes = codes >> 8;
-
                 }
                 elm::cout << __RESET__ << io::endl;
 
@@ -309,8 +308,8 @@ protected:
 
             	// verify
                 clp::Manager::step_t step;
-            	if(previous_bb != working_bb) {
-            		previous_bb = working_bb;
+            	if(enterNewBB) {
+            		enterNewBB = false;
             		// start CLP manager
             		step = clpManager.start(working_bb);
             		elm::cout << __CYAN__ << "restart clpManager with state:";
@@ -320,35 +319,32 @@ protected:
 
             	}
 
+    			sem::Block sb;
+    			working_inst->semInsts(sb);
+    			if(sb.count() == 0) {
+        			tricore_disasm(buffer, inst);
+        			elm::cerr << __SOURCE_INFO__ << __YELLOW__ << "No semantic instruction for " << buffer << ", of type " << (int)(inst->ident) << " .... program terminates" << __RESET__ << endl;
+        			std::exit(1);
+        		}
+    			sb.print(elm::cout, workspace()->platform());
+
 
         		Inst* currentInst = clpManager.inst();
-
-//        		sem::Block sb;
-//        		currentInst->semInsts(sb);
-//        		sb.print(elm::cout, workspace()->platform());
-
         		clp::State currentCLPState;
-        		if(currentInst->address() == Address(inst->addr)) {
-					while(step) {
+				while(step) {
 #define PRINT_EACH_STEP
 #ifdef PRINT_EACH_STEP
-						clpManager.sem().print(elm::cout, workspace()->platform());
-						elm::cout << " for instruction " << clpManager.inst() << endl;
-						elm::cout << __CYAN__ << "    ";
-						clpManager.state()->print(elm::cout, workspace()->platform());
-						elm::cout << __RESET__ << endl;
+					clpManager.sem().print(elm::cout, workspace()->platform());
+					elm::cout << " for instruction " << clpManager.inst() << endl;
+					elm::cout << __CYAN__ << "    ";
+					clpManager.state()->print(elm::cout, workspace()->platform());
+					elm::cout << __RESET__ << endl;
 #endif
-						currentCLPState = *(clpManager.state());
-						step = clpManager.next();
-	        			if(step & clp::Manager::NEW_INST)
-	        				break;
-					}
-        		}
-        		else {
-        			tricore_disasm(buffer, inst);
-        			elm::cout << __SOURCE_INFO__ << __YELLOW__ << "No semantic instruction for " << buffer << ", of type " << (int)(inst->ident) << __RESET__ << endl;
-        			//ASSERT(0);
-        		}
+					currentCLPState = *(clpManager.state());
+					step = clpManager.next();
+					if(step & clp::Manager::NEW_INST)
+						break;
+				}
 
 
         		// check actual state vs abstract state at the end of each instruction
@@ -368,10 +364,46 @@ protected:
 							actualValue = clp::Value(sim->state->FCX);
 						// now see if the actual value falls into the abstract domain
 						clp::Value actualValue2 = actualValue; // need another value because inter changes the calling object
-						ASSERTP(actualValue2.inter(*clpsi) == actualValue, "@ " << count << " BOOMGA REG ID = " << regID << ", actual value = " << actualValue << ", abstract Value = " << (*clpsi));
+						if(actualValue2.inter(*clpsi) != actualValue) {
+								elm::cerr << "REG ID = " << regID << ", actual value = " << actualValue << ", abstract Value = " << (*clpsi) << endl;
+								elm::cerr << __GREEN__ << "executing " << Address(inst->addr) << " @ CFG " << working_cfg->index() << " BB " << working_bb->index() << " ";
+				                tricore_disasm(buffer, inst);
+				                elm::cerr << buffer << " @ " << count << " => ";
+				                unsigned int codes = 0;
+				                unsigned int codesX = 0;
+				                tricore_mem_read(sim->state->M, inst->addr, (void*)&codes, 4);
+				                for(int wis = 0; wis < working_inst->size(); wis++) {
+				                	int shift = (8*(working_inst->size() - wis - 1));
+				                	elm::cerr <<hex((codes >> shift) &0xFF)<< " ";
+				                }
+				                elm::cerr << __RESET__ << io::endl;
+								std::exit(1);
+						}
+						verifiedReg++;
 					}
-					else // if it is memory
-						ASSERT(1);
+					else { // if it is memory
+						unsigned int memoryContent = 0;
+						unsigned int memoryAddress = clpsi.id().lower();
+						tricore_mem_read(sim->state->M, memoryAddress, (void*)&memoryContent, 4);
+						actualValue = clp::Value(memoryContent);
+						clp::Value actualValue2 = actualValue;
+						if(actualValue2.inter(*clpsi) != actualValue) {
+								elm::cerr << "M[0x" << hex(memoryAddress) << "]  actual value = " << actualValue << ", abstract Value = " << (*clpsi) << endl;
+								elm::cerr << __GREEN__ << "executing " << Address(inst->addr) << " @ CFG " << working_cfg->index() << " BB " << working_bb->index() << " ";
+				                tricore_disasm(buffer, inst);
+				                elm::cerr << buffer << " @ " << count << " => ";
+				                unsigned int codes = 0;
+				                unsigned int codesX = 0;
+				                tricore_mem_read(sim->state->M, inst->addr, (void*)&codes, 4);
+				                for(int wis = 0; wis < working_inst->size(); wis++) {
+				                	int shift = (8*(working_inst->size() - wis - 1));
+				                	elm::cerr <<hex((codes >> shift) &0xFF)<< " ";
+				                }
+				                elm::cerr << __RESET__ << io::endl;
+								std::exit(1);
+						}
+						verifiedMem++;
+					}
 				}
 
 
@@ -414,6 +446,7 @@ protected:
     						}
     					}
     				}
+    				enterNewBB = true;
             	} // reaching the end of BB
             	else {
             		working_inst = working_inst->nextInst();
@@ -512,8 +545,10 @@ protected:
 					if(COVERAGE[i])
 						coverageC++;
 				}
-				printf("Running %d instructions, covering %d/%d instruction set, rate = %f\n", count, coverageC, TRICORE_INSTRUCTIONS_NB, ((float)coverageC / (float)TRICORE_INSTRUCTIONS_NB * 100.0));
-				ASSERTP(0, "End of the execution");
+				elm::cout << "Running " << count << " instructions, covering " << coverageC << "/" << TRICORE_INSTRUCTIONS_NB << " instruction set, rate = " << ((float)coverageC / (float)TRICORE_INSTRUCTIONS_NB * 100.0) << endl;
+				elm::cout << "verifiedReg = " << verifiedReg << ", verifiedMem = " << verifiedMem << endl;
+				elm::cout << "End of the execution" << endl;
+				std::exit(0);
 			}
 
 #ifdef TWIRTEE_SECOND_PART
