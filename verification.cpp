@@ -382,13 +382,26 @@ protected:
 						verifiedReg++;
 					}
 					else { // if it is memory
+						// First need to check the size of the abstract domain
+						clp::Value abstractValue = *clpsi;
+						long abstractValueMax = abstractValue.upper();
+						int byteCount = 0;
+						if (abstractValueMax > 0x1000000)
+							byteCount = 4;
+						else if(abstractValueMax > 0x10000)
+							byteCount = 3;
+						else if(abstractValueMax > 0x100)
+							byteCount = 2;
+						else
+							byteCount = 1;
+
 						unsigned int memoryContent = 0;
 						unsigned int memoryAddress = clpsi.id().lower();
-						tricore_mem_read(sim->state->M, memoryAddress, (void*)&memoryContent, 4);
+						tricore_mem_read(sim->state->M, memoryAddress, (void*)&memoryContent, byteCount);
 						actualValue = clp::Value(memoryContent);
 						clp::Value actualValue2 = actualValue;
 						if(actualValue2.inter(*clpsi) != actualValue) {
-								elm::cerr << "M[0x" << hex(memoryAddress) << "]  actual value = " << actualValue << ", abstract Value = " << (*clpsi) << endl;
+								elm::cerr << "not match M[0x" << hex(memoryAddress) << "]  actual value = " << actualValue << ", abstract Value = " << (*clpsi) << endl;
 								elm::cerr << __GREEN__ << "executing " << Address(inst->addr) << " @ CFG " << working_cfg->index() << " BB " << working_bb->index() << " ";
 				                tricore_disasm(buffer, inst);
 				                elm::cerr << buffer << " @ " << count << " => ";
@@ -400,6 +413,7 @@ protected:
 				                	elm::cerr <<hex((codes >> shift) &0xFF)<< " ";
 				                }
 				                elm::cerr << __RESET__ << io::endl;
+				                elm::cerr << "byteCount = " << byteCount << endl;
 								std::exit(1);
 						}
 						verifiedMem++;
