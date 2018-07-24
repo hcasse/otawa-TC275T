@@ -17,7 +17,7 @@ using namespace otawa;
 #include "mreg.h"
 #include "pipe.h"
 
-namespace continental { namespace tricore16P {
+namespace otawa { namespace tricore16P {
 
 typedef enum {
 	IP = 0,
@@ -72,7 +72,7 @@ typedef enum {
 } pf_t;
 
 typedef Pair<Address, pf_t> pf_info_t;
-Identifier<pf_t> PREFETCHED("continental::tricore16P::PREFETECHED", PF_NONE);
+Identifier<pf_t> PREFETCHED("otawa::tricore16P::PREFETECHED", PF_NONE);
 
 io::Output& operator<<(io::Output& out, pf_t p) {
 	static cstring msgs[] = {
@@ -265,10 +265,10 @@ private:
 	}
 };
 
-Feature<PrefetchCategoryAnalysis> PREFETCH_CATEGORY_FEATURE("continental::tricore16P::PREFETCH_CATEGORY_FEATURE");
+Feature<PrefetchCategoryAnalysis> PREFETCH_CATEGORY_FEATURE("otawa::tricore16P::PREFETCH_CATEGORY_FEATURE");
 
 
-p::declare PrefetchCategoryAnalysis::reg = p::init("continental::tricore16P::PrefetchCategoryAnalysis", Version(1, 0, 0))
+p::declare PrefetchCategoryAnalysis::reg = p::init("otawa::tricore16P::PrefetchCategoryAnalysis", Version(1, 0, 0))
 	.make<PrefetchCategoryAnalysis>()
 	.provide(PREFETCH_CATEGORY_FEATURE)
 	.require(otawa::ICACHE_CATEGORY2_FEATURE);
@@ -691,7 +691,7 @@ private:
 /**
  * Determine the type of core.
  */
-Identifier<int> CORE("continental::tricore16P::CORE", 1);
+Identifier<int> CORE("otawa::tricore16P::CORE", 1);
 
 class BBTimer: public etime::EdgeTimeBuilder {
 public:
@@ -726,24 +726,24 @@ private:
 };
 
 
-p::declare BBTimer::reg = p::init("continental::tricore16P::BBTimer", Version(1, 0, 0))
+p::declare BBTimer::reg = p::init("otawa::tricore16P::BBTimer", Version(1, 0, 0))
 		.base(etime::EdgeTimeBuilder::reg)
 		.require(otawa::hard::CACHE_CONFIGURATION_FEATURE)
 		.require(otawa::branch::CONSTRAINTS_FEATURE)
 		.require(otawa::gliss::INFO_FEATURE)
-		//.require(continental::tricore16P::PREFETCH_CATEGORY_FEATURE)
+		//.require(otawa::tricore16P::PREFETCH_CATEGORY_FEATURE)
 		.maker<BBTimer>();
 
 class Plugin: public ProcessorPlugin {
 public:
 	//typedef elm::genstruct::Table<AbstractRegistration * > procs_t;
 
-	//Plugin(void): ProcessorPlugin("continental::tricore16P", Version(1, 0, 0), OTAWA_PROC_VERSION) { }
+	//Plugin(void): ProcessorPlugin("otawa::tricore16P", Version(1, 0, 0), OTAWA_PROC_VERSION) { }
 	//virtual procs_t& processors (void) const { return procs_t::EMPTY; };
 
 	typedef elm::genstruct::Table<AbstractRegistration *> procs_t;
 
-	Plugin(void): ProcessorPlugin(make("continental::tricore16P", OTAWA_PROC_VERSION)
+	Plugin(void): ProcessorPlugin(make("otawa::tricore16P", OTAWA_PROC_VERSION)
 		.version(1, 0, 0)
 		.description("timing analyses for TriCore")
 		.license(Manager::copyright)) {
@@ -751,10 +751,10 @@ public:
 
 };
 
-} }	// continental::tricore16P
+} }	// otawa::tricore16P
 
-continental::tricore16P::Plugin contintal_tricore;
-ELM_PLUGIN(contintal_tricore, OTAWA_PROC_HOOK);
+otawa::tricore16P::Plugin otawa_tricore16P;
+ELM_PLUGIN(otawa_tricore16P, OTAWA_PROC_HOOK);
 
 
 

@@ -323,7 +323,7 @@
 <script>
 
 	<step processor="otawa::clp::CLPAnalysis"></step>
-	<step processor="continental::tricore16P::StateVerifier"></step>
+	<step processor="otawa::tricore16P::StateVerifier"></step>
 
 
 	<config name="otawa::ipet::EXPLICIT" value="true"/>
@@ -339,16 +339,16 @@
 	<step require="otawa::ICACHE_CATEGORY2_FEATURE"/>
 	
 	
-	<step require="continental::tricore16P::PREFETCH_CATEGORY_FEATURE"/>
+	<step require="otawa::tricore16P::PREFETCH_CATEGORY_FEATURE"/>
  
  
 	<step require="otawa::ICACHE_ONLY_CONSTRAINT2_FEATURE"/>
  
-	<step processor="continental::tricore16P::BBTimer">
+	<step processor="otawa::tricore16P::BBTimer">
 		<xsl:if test="$gpath!=''">
 			<config name="otawa::GRAPHS_OUTPUT_DIRECTORY" value="{$gpath}"/>
 		</xsl:if>
-		<config name="continental::tricore16P::CORE" value="{$core}"/>
+		<config name="otawa::tricore16P::CORE" value="{$core}"/>
 	</step>
 	
 

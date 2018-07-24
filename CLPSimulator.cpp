@@ -1,3 +1,4 @@
+#include <elm/avl/Set.h>
 #include <otawa/parexegraph/GraphBBTime.h>
 #include <otawa/parexegraph/ParExeGraph.h>
 #include <otawa/proc/ProcessorPlugin.h>
@@ -52,18 +53,25 @@ typedef struct tricore_memory_t
 using namespace otawa;
 namespace otawa { namespace tricore16P {
 
+Identifier<bool> INITIALIZED("INITIALIZED", false);
+Identifier<bool> COVERED("COVERED", false);
 
-unsigned long ENDNUM = 0xFFFFFFFF;
+extern unsigned long ENDNUM;
+static avl::Set<unsigned int> accessAddrs;
 static void spyx(tricore_memory_t *mem, tricore_address_t addr, tricore_size_t size, tricore_access_t access, void *data);
 
-class StateVerifier: public otawa::Processor {
+static bool debug = false;
+static bool debug_cfg = false;
+
+class CLPSimulator: public otawa::Processor {
 public:
 	static p::declare reg;
-	StateVerifier(void): otawa::Processor(reg) { }
+	CLPSimulator(void): otawa::Processor(reg) { }
 
 	static int BIGNUM;
 	static int BIGNUMa;
 	static int currPC;
+	static bool logging;
 	static tricore_sim_t *sim;
 
 protected:
@@ -72,12 +80,43 @@ protected:
 		otawa::Processor::configure(props);
 	}
 
+
+
+	void extractState(tricore_sim_t *sim, clp::State& clpState) {
+		if(debug) {
+			elm::cout << "Access addrs: ";
+			for(avl::Set<unsigned int>::Iterator a(accessAddrs); a; a++)
+				elm::cout << hex(*a) << " ";
+			elm::cout << endl;
+		}
+
+		for(int regIndex = 0; regIndex < workspace()->process()->platform()->regCount(); regIndex++) {
+			clp::Value actualValue;
+			if(regIndex >= 0 && regIndex <= 15) { // Data register
+				actualValue = clp::Value(sim->state->D[regIndex]);
+				//elm::cout << "D" << regIndex << " = " << hex(sim->state->D[regIndex]) << endl;
+			}
+			else if(regIndex >= 16 && regIndex <= 31) // Address register
+				actualValue = clp::Value(sim->state->A[regIndex-16]);
+			else if(regIndex == 32) // PSW register
+				continue; // actualValue = clp::Value(sim->state->PSW);
+			else if(regIndex == 33) { // PC register
+				//elm::cout << "PC" << " = " << hex(sim->state->PC) << endl;
+				continue; // actualValue = clp::Value(sim->state->PC);
+			}
+			else if(regIndex == 34) // FCX register
+				continue; // actualValue = clp::Value(sim->state->FCX);
+			clpState.set(clp::Value(clp::REG, regIndex), actualValue);
+		}
+	}
+
+
 	virtual void processWorkSpace(WorkSpace *fw) {
 		unsigned int verifiedReg = 0;
 		unsigned int verifiedMem = 0;
 
 
-
+		int exit = 0;
 
 		const CFGCollection *cfgs = INVOLVED_CFGS(fw);
 		ASSERT(cfgs);
@@ -88,6 +127,9 @@ protected:
 		BasicBlock* working_bb = 0;
 		bool enterNewBB = true;
 		Inst* working_inst = 0;
+		int totalInst = 0;
+		int totaltotalInst = 0;
+		Vector<Block*> callStack;
 
 		// Visit CFG
 		for(CFGCollection::Iter cfg(cfgs); cfg; cfg++) {
@@ -98,18 +140,21 @@ protected:
 				working_bb = cfg->entry()->outs()->target()->toBasic();
 				working_inst = working_bb->first();
 			}
-			elm::cout << "\tprocess CFG " << cfg->label() << io::endl;
+//			elm::cout << "\tprocess CFG " << cfg->label() << io::endl;
 			for(CFG::BlockIter bb = cfg->blocks(); bb; bb++) {
-				elm::cout << "\t\tprocess " << *bb << io::endl;
-				clp::State clpState = clp::STATE_IN(bb);
-
-				elm::cout << "\t\t\t";
-				clpState.print(elm::cout, workspace()->platform());
-				elm::cout << io::endl;
+				if(bb->isBasic())
+					totaltotalInst = totaltotalInst + bb->toBasic()->count();
+//				elm::cout << "\t\tprocess " << *bb << io::endl;
+//				clp::State clpState = clp::STATE_IN(bb);
+//
+//				elm::cout << "\t\t\t";
+//				clpState.print(elm::cout, workspace()->platform());
+//				elm::cout << io::endl;
 			}
 		}
 
 		elm::cout << "Address to trigger = " << addressToTrigger << endl;
+		elm::cout << "There are " << totaltotalInst << " instructions in this program" << endl;
 
 
 		bool verbose = true;
@@ -214,10 +259,14 @@ protected:
         bool following = false;
         clp::Manager clpManager(workspace());
 
+        bool init = true;
+        logging = false;
 
         while(!tricore_is_sim_ended(sim)) // execution loop
 		{
+
             inst = tricore_next_inst(sim);
+
 
             COVERAGE[inst->ident] = 1;
 
@@ -255,208 +304,152 @@ protected:
             // ==============================================================
 
 
-            unsigned int oldPC = sim->state->PC;
 
 
-
-            tricore_step(sim);
-            currPC = sim->state->PC;
-
-
-
+//            if(debug_cfg)
+//            {
+//            	elm::cout << "count = " << count << endl;
+//                fprintf(stdout, "| PC  = 0x%-8X  ", sim->state->PC);
+//                fprintf(stdout, "| PCSX= 0x%-8X  ", ((sim->state->PCXI >> 16) & 0xF));
+//                fprintf(stdout, "| PCSO= 0x%-8X  ", (sim->state->PCXI & 0xFFFF));
+//                fprintf(stdout, "| PCXI= 0x%-8X  ", sim->state->PCXI);
+//                fprintf(stdout, "| FCX = 0x%-8X  ", sim->state->FCX);
+//                fprintf(stdout, "| PSW = 0x%08x  ", sim->state->PSW);
+//                fprintf(stdout, "| IO  = 0x%-8X  ", ((sim->state->PSW >> 10)&3));
+//                printf("|\n");
+//
+//                for(int ih = 0; ih < 16; ih++) {
+//                	fprintf(stdout, "| D%-2d = 0x%-8X  ", ih, sim->state->D[ih]);
+//                	if(ih == 7) printf("|\n");
+//                }
+//                printf("|\n");
+//
+//                for(int ih = 0; ih < 16; ih++) {
+//                	fprintf(stdout, "| A%-2d = 0x%-8X  ", ih, sim->state->A[ih]);
+//                	if(ih == 7) printf("|\n");
+//                }
+//                printf("|\n");
+//            }
 
             if(!following && (inst->addr == addressToTrigger.offset())) {
             	following = true;
             }
 
             if(following) {
+                // begining of the BB
+                if(enterNewBB) {
+                	COVERED(working_bb) = true;
+                	enterNewBB = false;
+                	clp::State clpState = clp::STATE_IN(working_bb);
+                	if(!INITIALIZED(working_bb)) { // use the current state as the STATE_IN
+                		INITIALIZED(working_bb) = true;
+                		totalInst = totalInst + working_bb->count();
+                		clp::State currentCLPState;
+                		extractState(sim, currentCLPState);
+                		//currentCLPState.print(elm::cout, workspace()->process()->platform()); elm::cout << endl;
+                		clp::STATE_IN(working_bb) = currentCLPState;
+                		// elm::cout << "extracting state for " << working_bb << endl;
+                	}
+                	else { // STATE_IN' = STATE_IN joining incoming state
+                		clp::State orig = clp::STATE_IN(working_bb);
+                		clp::State come;
+                		extractState(sim, come);
+                		orig.join(come);
+                		clp::STATE_IN(working_bb) = orig;
+                	}
+                }
+
+                //elm::cout << "processing working_inst " << working_inst << " @ " << working_inst->address()<< endl;
+                if(!INITIALIZED(working_inst)) {
+                	INITIALIZED(working_inst) = true;
+                	clp::State currentCLPState;
+					extractState(sim, currentCLPState);
+					clp::STATE_IN(working_inst) = currentCLPState;
+					//currentCLPState.print(elm::cout, workspace()->platform()); elm::cout << endl;
+                }
+                else {
+            		clp::State orig = clp::STATE_IN(working_inst);
+            		clp::State come;
+            		extractState(sim, come);
+
+            		//elm::cout << "orig = "; orig.print(elm::cout, workspace()->platform()); elm::cout << endl;
+            		//elm::cout << "come = "; come.print(elm::cout, workspace()->platform()); elm::cout << endl;
+
+            		orig.join(come);
+            		clp::STATE_IN(working_inst) = orig;
+            		//elm::cout << "resu = "; orig.print(elm::cout, workspace()->platform()); elm::cout << endl;
+                }
+
+
 
             	// output the instruction info
-            	elm::cout << __GREEN__ << "executing " << Address(inst->addr) << " towards to " << working_bb->last()->address() << " ";
-                tricore_disasm(buffer, inst);
-                elm::cout << buffer << " @ " << count << " => ";
-                unsigned int codes = 0;
-                unsigned int codesX = 0;
-                tricore_mem_read(sim->state->M, inst->addr, (void*)&codes, 4);
-                for(int wis = 0; wis < working_inst->size(); wis++) {
-                	int shift = (8*(working_inst->size() - wis - 1));
-                	elm::cout <<hex((codes >> shift) &0xFF)<< " ";
+                if(debug) {
+					elm::cout << __GREEN__ << "executing " << Address(inst->addr) << " towards to " << working_bb->last()->address() << " of CFG " << working_cfg->index() << " BB " << working_bb->index() << " ";
+					tricore_disasm(buffer, inst);
+					elm::cout << buffer << " @ " << count << " => ";
+					unsigned int codes = 0;
+					unsigned int codesX = 0;
+					tricore_mem_read(sim->state->M, inst->addr, (void*)&codes, 4);
+					for(int wis = 0; wis < working_inst->size(); wis++) {
+						int shift = (8*(working_inst->size() - wis - 1));
+						elm::cout <<hex((codes >> shift) &0xFF)<< " ";
+					}
+					elm::cout << __RESET__ << io::endl;
                 }
-                elm::cout << __RESET__ << io::endl;
+            }
 
 
+			unsigned int oldPC = sim->state->PC;
+			if(following)
+				logging = true;
+			tricore_step(sim);
+			logging = false;
+			currPC = sim->state->PC;
 
-            	// verify
-                clp::Manager::step_t step;
-            	if(enterNewBB) {
-            		enterNewBB = false;
-            		// start CLP manager
-            		step = clpManager.start(working_bb);
-            		elm::cout << __CYAN__ << "restart clpManager with state:";
-    				clp::State clpState = clp::STATE_IN(working_bb);
-    				clpState.print(elm::cout, workspace()->platform());
-    				elm::cout << __RESET__ << io::endl;
+			if(following) {
 
-            	}
-
-    			sem::Block sb;
-    			working_inst->semInsts(sb);
-    			if(sb.count() == 0) {
-        			tricore_disasm(buffer, inst);
-        			elm::cerr << __SOURCE_INFO__ << __YELLOW__ << "No semantic instruction for " << buffer << ", of type " << (int)(inst->ident) << " .... program terminates" << __RESET__ << endl;
-        			std::exit(1);
-        		}
-    			sb.print(elm::cout, workspace()->platform());
-
-
-        		Inst* currentInst = clpManager.inst();
-        		clp::State currentCLPState;
-				while(step) {
-#define PRINT_EACH_STEP
-#ifdef PRINT_EACH_STEP
-					clpManager.sem().print(elm::cout, workspace()->platform());
-					elm::cout << " for instruction " << clpManager.inst() << endl;
-					elm::cout << __CYAN__ << "    ";
-					clpManager.state()->print(elm::cout, workspace()->platform());
-					elm::cout << __RESET__ << endl;
-#endif
-					currentCLPState = *(clpManager.state());
-					step = clpManager.next();
-					if(step & clp::Manager::NEW_INST)
-						break;
-				}
-
-
-        		// check actual state vs abstract state at the end of each instruction
-				for(clp::State::Iter clpsi(currentCLPState); clpsi; clpsi++) {
-					clp::Value actualValue;
-					if(clpsi.id().kind() == clp::REG) {
-						int regID = clpsi.id().lower();
-						if(regID >= 0 && regID <= 15) // Data register
-							actualValue = clp::Value(sim->state->D[regID]);
-						else if(regID >= 16 && regID <= 31) // Address register
-							actualValue = clp::Value(sim->state->A[regID-16]);
-						else if(regID == 32) // PSW register
-							actualValue = clp::Value(sim->state->PSW);
-						else if(regID == 33) // PSW register
-							actualValue = clp::Value(sim->state->PC);
-						else if(regID == 34) // FCX register
-							actualValue = clp::Value(sim->state->FCX);
-						// now see if the actual value falls into the abstract domain
-						clp::Value actualValue2 = actualValue; // need another value because inter changes the calling object
-						if(actualValue2.inter(*clpsi) != actualValue) {
-								elm::cerr << "REG " << workspace()->process()->platform()->findReg(regID) << ", actual value = " << actualValue << ", abstract Value = " << (*clpsi) << endl;
-								elm::cerr << __GREEN__ << "executing " << Address(inst->addr) << " @ CFG " << working_cfg->index() << " BB " << working_bb->index() << " ";
-				                tricore_disasm(buffer, inst);
-				                elm::cerr << buffer << " @ " << count << " => ";
-				                unsigned int codes = 0;
-				                unsigned int codesX = 0;
-				                tricore_mem_read(sim->state->M, inst->addr, (void*)&codes, 4);
-				                for(int wis = 0; wis < working_inst->size(); wis++) {
-				                	int shift = (8*(working_inst->size() - wis - 1));
-				                	elm::cerr <<hex((codes >> shift) &0xFF)<< " ";
-				                }
-				                elm::cerr << __RESET__ << io::endl;
-								std::exit(1);
-						}
-						verifiedReg++;
-					}
-					else { // if it is memory
-						// First need to check the size of the abstract domain
-						clp::Value abstractValue = *clpsi;
-						unsigned int abstractValueMax = abstractValue.upper();
-						int byteCount = 0;
-						if (abstractValueMax > 0x1000000)
-							byteCount = 4;
-						else if(abstractValueMax > 0x10000)
-							byteCount = 3;
-						else if(abstractValueMax > 0x100)
-							byteCount = 2;
-						else
-							byteCount = 1;
-
-						unsigned int abstractValueMin = abstractValue.lower();
-						int byteCount2 = 0;
-						if (abstractValueMin > 0x1000000)
-							byteCount2 = 4;
-						else if(abstractValueMin > 0x10000)
-							byteCount2 = 3;
-						else if(abstractValueMin > 0x100)
-							byteCount2 = 2;
-						else
-							byteCount2 = 1;
-
-						if(byteCount2 > byteCount) {
-							byteCount = byteCount2;
-							elm::cout << "for address 0x" << hex(clpsi.id().lower()) << ", abstractValueMin = 0x" << hex(abstractValueMin) << ", byteCount = " << byteCount << endl;
-						}
-						else {
-							elm::cout << "for address 0x" << hex(clpsi.id().lower()) << ", abstractValueMax = 0x" << hex(abstractValueMax) << ", byteCount = " << byteCount << endl;
-						}
-
-
-
-						unsigned int memoryContent = 0;
-						unsigned int memoryAddress = clpsi.id().lower();
-						tricore_mem_read(sim->state->M, memoryAddress, (void*)&memoryContent, byteCount);
-						actualValue = clp::Value(memoryContent);
-						clp::Value actualValue2 = actualValue;
-						if(actualValue2.inter(*clpsi) != actualValue) {
-								elm::cerr << "not match M[0x" << hex(memoryAddress) << "]  actual value = " << actualValue << ", abstract Value = " << (*clpsi) << endl;
-								elm::cerr << __GREEN__ << "executing " << Address(inst->addr) << " @ CFG " << working_cfg->index() << " BB " << working_bb->index() << " ";
-				                tricore_disasm(buffer, inst);
-				                elm::cerr << buffer << " @ " << count << " => ";
-				                unsigned int codes = 0;
-				                unsigned int codesX = 0;
-				                tricore_mem_read(sim->state->M, inst->addr, (void*)&codes, 4);
-				                for(int wis = 0; wis < working_inst->size(); wis++) {
-				                	int shift = (8*(working_inst->size() - wis - 1));
-				                	elm::cerr <<hex((codes >> shift) &0xFF)<< " ";
-				                }
-				                elm::cerr << __RESET__ << io::endl;
-				                elm::cerr << "byteCount = " << byteCount << endl;
-								std::exit(1);
-						}
-						verifiedMem++;
-					}
-				}
-
-
-
-            	if(Address(inst->addr) == working_bb->last()->address())  { // reacheds the end of BB
+                // reacheds the end of BB
+            	if(Address(inst->addr) == working_bb->last()->address())  {
     				// need to decide the following block
     				Address nextAddress = Address(sim->state->PC);
     				for (Block::EdgeIter outEdge = working_bb->outs(); outEdge; outEdge++) {
     					if(outEdge->target()->isSynth()) {
+    						if(debug_cfg)
+    							elm::cout << __RED__ << "    Making a call" << __RESET__ << endl;
     						working_cfg = outEdge->target()->toSynth()->callee();
     						working_bb = working_cfg->entry()->outs()->target()->toBasic();
     						working_inst = working_bb->first();
-    						elm::cout << "Making a call CFG " << working_bb->cfg()->index() << " BB " << working_bb->index() << endl;
+    						callStack.push(outEdge->target()->outs()->target());
     					}
-    					else if (outEdge->target()->isExit()) {
-    						elm::cout << "Leaving a call" << endl;
-    						for(CFG::CallerIter ci = outEdge->target()->cfg()->callers(); ci; ci++) {
-    							for (Block::EdgeIter ciOut = ci->outs(); ciOut; ciOut++) {
-    								if(ciOut->target()->isSynth()) {
-    									elm::cout << "Sequential call!" << endl;
-    								}
-    								else if (ciOut->target()->isExit()) {
-    									elm::cout << "Sequential exit!" << endl;
-    								}
-    								else if(ciOut->target()->toBasic()->address() == nextAddress) {
-    									working_bb = ciOut->target()->toBasic();
-    									working_cfg = working_bb->cfg();
-    									working_inst = working_bb->first();
-    									break;
-    								}
-    							}
-    						}
+    					else if (outEdge->target()->isExit() && callStack.count()) {
+    						if(debug_cfg)
+    							elm::cout << __RED__ << "    Leaving a call" << __RESET__ << endl;
+    						working_bb = nullptr;
+    						Block* returnBlock = callStack.pop();
+							if(returnBlock->isSynth()) {
+								if(debug_cfg)
+									elm::cout << __RED__ << "    Sequential call!" << __RESET__ << endl;
+							}
+							else if (returnBlock->isExit()) {
+								if(debug_cfg)
+									elm::cout << __RED__ << "    Sequential exit!" << __RESET__ << endl;
+							}
+							else if(returnBlock->address() == nextAddress) {
+								working_bb = returnBlock->toBasic();
+								working_cfg = working_bb->cfg();
+								working_inst = working_bb->first();
+							}
+    						ASSERT(working_bb);
+    					}
+    					else if(outEdge->target()->isExit() && callStack.count() == 0) {
+    						exit = 1;
     					}
     					else {
     						if(outEdge->target()->toBasic()->first()->address() == nextAddress) {
     							working_bb = outEdge->target()->toBasic();
     							working_inst = working_bb->first();
-    							elm::cout << __RED__ << "    continue to a normal basic block CFG " << working_bb->cfg()->index() << " BB " << working_bb->index() << __RESET__ << endl;
+    							if(debug_cfg)
+    								elm::cout << __RED__ << "    continue to a normal basic block" << __RESET__ << endl;
     							break;
     						}
     					}
@@ -467,59 +460,74 @@ protected:
             		working_inst = working_inst->nextInst();
             	}
 
+            }
 
 
-            	if(Address(sim->state->PC) != 0)
-            		ASSERTP((Address(sim->state->PC) >= working_bb->address()) && (Address(sim->state->PC) <= working_bb->last()->address()), "Address " << Address(sim->state->PC) << " is out of the current BB: CFG " << working_cfg->index() << " " << working_bb);
+
+
+            if(following) {
+            	if((exit != 1) && (Address(sim->state->PC) != 0)) {
+            		if((Address(sim->state->PC) >= working_bb->address()) && (Address(sim->state->PC) <= working_bb->last()->address())) {}
+            		else {
+            			elm::cout << "count = " << count << endl;
+            			elm::cout << "Address " << Address(sim->state->PC) << " is out of the current BB: CFG " << working_cfg->index() << " " << working_bb << endl;
+            			ASSERT(0);
+            		}
+            	}
             } // if following
 
+        	count++;
+        	BIGNUMa = count;
+
+        	ENDNUM = 193487525;
 
 
+        	if(count > ENDNUM) {
+				exit = 1;
+        	}
 
+			if(sim->state->PC == 0)
+			{
+				exit = 1;
+			}
 
+			if(exit == 1) {
 
-
-
-
-
-
-            if(count >= BIGNUM) {
-				printf("execute %d %08x", count, oldPC);
-				tricore_used_regs_read_t rds, wrs;
-				tricore_used_regs(inst, rds, wrs);
-				printf(" rd:");
-				int init = 1;
-				for(int i = 0; i < TRICORE_REG_READ_MAX; i++) {
-					if(rds[i] == -1 ) break;
-					if(rds[i] >= 12 && rds[i] <= 27) {
-						if(init) {init = 0; } else { printf(","); }
-						printf("a%d[%08x]", rds[i]-12, sim->state->A[rds[i]-12]);
-					}
-					else if(rds[i] >= 32 && rds[i] <= 47) {
-						if(init) {init = 0; } else { printf(","); }
-						printf("d%d[%08x]", rds[i]-32, sim->state->D[rds[i]-32]);
-					}
-				}
-
-				printf(" wb:");
-				init = 1;
-				for(int i = 0; i < TRICORE_REG_WRITE_MAX; i++) {
-					if(wrs[i] == -1 ) break;
-					if(wrs[i] >= 12 && wrs[i] <= 27) {
-						if(init) {init = 0; } else { printf(",");}
-						printf("a%d[%08x]", wrs[i]-12, sim->state->A[wrs[i]-12]);
-					}
-					else if(wrs[i] >= 32 && wrs[i] <= 47) {
-						if(init) {init = 0; } else { printf(","); }
-						printf("d%d[%08x]", wrs[i]-32, sim->state->D[wrs[i]-32]);
+				int coveredBB = 0;
+				int totalBB = 0;
+				for(CFGCollection::BlockIter cfgcbi(cfgs); cfgcbi; cfgcbi++) {
+					if(cfgcbi->isBasic()) {
+						totalBB++;
+						if(COVERED(*cfgcbi))
+							coveredBB++;
 					}
 				}
+				elm::cout << "Running " << coveredBB << " BBs of out " << totalBB << " BBs , covering rate = " << ((float)coveredBB / (float)totalBB * 100.0) << " % " << endl;
+				elm::cout << "Running " << totalInst << " Insts of out " << totaltotalInst << " Insts , covering rate = " << ((float)totalInst / (float)totaltotalInst * 100.0) << " % " << endl;
 
-				printf(" psw:");
-				printf("%08x", sim->state->PSW);
 
-				printf("\n");
-            }
+				int coverageC = 0;
+				for(int i = 0; i < TRICORE_INSTRUCTIONS_NB; i++) {
+					// printf("covered %d\n", COVERAGE[i]);
+					if(COVERAGE[i])
+						coverageC++;
+				}
+				elm::cout << "Running " << count << " instructions, covering " << coverageC << "/" << TRICORE_INSTRUCTIONS_NB << " instruction set, rate = " << ((float)coverageC / (float)TRICORE_INSTRUCTIONS_NB * 100.0) << endl;
+				elm::cout << "verifiedReg = " << verifiedReg << ", verifiedMem = " << verifiedMem << endl;
+				elm::cout << "End of the execution" << endl;
+				//std::exit(0);
+				break;
+			}
+
+
+
+
+
+
+
+
+
+
 
 
 #ifdef TWIRTEE_FIRST_PART
@@ -539,32 +547,6 @@ protected:
             	}
             }
 #endif
-
-        	count++;
-        	BIGNUMa = count;
-
-			int exit = 0;
-        	if(count > ENDNUM) {
-				exit = 1;
-        	}
-
-			if(sim->state->PC == 0)
-			{
-				exit = 1;
-			}
-
-			if(exit == 1) {
-				int coverageC = 0;
-				for(int i = 0; i < TRICORE_INSTRUCTIONS_NB; i++) {
-					// printf("covered %d\n", COVERAGE[i]);
-					if(COVERAGE[i])
-						coverageC++;
-				}
-				elm::cout << "Running " << count << " instructions, covering " << coverageC << "/" << TRICORE_INSTRUCTIONS_NB << " instruction set, rate = " << ((float)coverageC / (float)TRICORE_INSTRUCTIONS_NB * 100.0) << endl;
-				elm::cout << "verifiedReg = " << verifiedReg << ", verifiedMem = " << verifiedMem << endl;
-				elm::cout << "End of the execution" << endl;
-				std::exit(0);
-			}
 
 #ifdef TWIRTEE_SECOND_PART
 			if(sim->state->PC == 0x80005322) {
@@ -620,36 +602,15 @@ protected:
 			}
 #endif
 
-#ifdef CALL_LEVELS
-			if(inst->ident == TRICORE_CALLA_08X) {
-				levelx++; for(int i = 0; i < levelx; i++) printf("  "); printf("call to 0x%X\n", sim->state->PC);
-			}
-			else if(inst->ident == TRICORE_CALLI_AD ) {
-				levelx++; for(int i = 0; i < levelx; i++) printf("  "); printf("call to 0x%X\n", sim->state->PC);
-			}
-			else if(inst->ident == TRICORE_CALL_08X_0 ) {
-				levelx++; for(int i = 0; i < levelx; i++) printf("  "); printf("call to 0x%X\n", sim->state->PC);
-			}
-			else if(inst->ident == TRICORE_CALL_08X ) {
-				levelx++; for(int i = 0; i < levelx; i++) printf("  "); printf("call to 0x%X\n", sim->state->PC);
-			}
-
-			else if(inst->ident == TRICORE_RET  ) {
-				levelx--;
-			}
-			else if(inst->ident == TRICORE_RET_0  ) {
-				levelx--;
-			}
-#endif
 
 			// ==========================================
             tricore_free_inst(inst);
-		}
+		} // while loop
 
 		/* close loader file */
 	    tricore_loader_close(loader);
 
-
+	    elm::cout << "Finish processing at otawa::tricore16P::CLPSimulator" << endl;
 
 
 	}
@@ -658,17 +619,18 @@ protected:
 private:
 };
 
-int StateVerifier::BIGNUM = 200000000; // -1
-int StateVerifier::BIGNUMa = 0;
-int StateVerifier::currPC = 0;
-tricore_sim_t *StateVerifier::sim = 0;
+int CLPSimulator::BIGNUM = 0x7FFFFFFF; // -1
+int CLPSimulator::BIGNUMa = 0;
+int CLPSimulator::currPC = 0;
+bool CLPSimulator::logging = false;
+tricore_sim_t *CLPSimulator::sim = 0;
 
 static void spyx(tricore_memory_t *mem, tricore_address_t addr, tricore_size_t size, tricore_access_t access, void *data) {
 
-	if(StateVerifier::BIGNUMa < StateVerifier::BIGNUM)
+	if(!CLPSimulator::logging)
 		return;
 
-	if(StateVerifier::currPC == addr) // do not print the instruction loading
+	if(CLPSimulator::currPC == addr) // do not print the instruction loading
 		return;
 
 	uint8_t tmp1 = 0;
@@ -678,7 +640,7 @@ static void spyx(tricore_memory_t *mem, tricore_address_t addr, tricore_size_t s
 	unsigned int result = 0;
 
 	for(int iii = 0; iii < 65536 /* HASHTABLE_SIZE */; iii++) {
-		page_entry_t* pagex = StateVerifier::sim->state->M->hashtable[iii];
+		page_entry_t* pagex = CLPSimulator::sim->state->M->hashtable[iii];
 		int found = 0;
 		while(pagex) {
 			if(pagex->addr == (addr & 0xFFFFF000)) {
@@ -707,19 +669,23 @@ static void spyx(tricore_memory_t *mem, tricore_address_t addr, tricore_size_t s
 	}
 
 
-	if(access == tricore_access_read)
-		printf("read %dB @ 0x%X with data 0x%X\n", size, addr, result);
-	else {
-		printf("write %dB @ 0x%X with data 0x%X\n", size, addr, result);
+	accessAddrs.add(addr);
+	if(debug) {
+		if(access == tricore_access_read) {
+			elm::cout << "read " << size << " B @ 0x" << hex(addr) << " with data 0x" << hex(result) << endl;
+		}
+		else {
+			elm::cout << "write " << size << " B @ 0x" << hex(addr) << " with data 0x" << hex(result) << endl;
+		}
 	}
 }
 
-p::declare StateVerifier::reg = p::init("otawa::tricore16P::StateVerifier", Version(1, 0, 0))
+p::declare CLPSimulator::reg = p::init("otawa::tricore16P::CLPSimulator", Version(1, 0, 0))
 		.base(otawa::Processor::reg)
-//		.require(otawa::hard::CACHE_CONFIGURATION_FEATURE)
-//		.require(otawa::branch::CONSTRAINTS_FEATURE)
-//		.require(otawa::gliss::INFO_FEATURE)
-		.maker<StateVerifier>();
+		.maker<CLPSimulator>()
+		.require(COLLECTED_CFG_FEATURE)
+		.require(LOOP_INFO_FEATURE)
+		.provide(clp::CLP_ANALYSIS_FEATURE);
 
 }}
 
