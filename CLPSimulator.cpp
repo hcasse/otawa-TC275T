@@ -105,7 +105,11 @@ protected:
 				continue; // actualValue = clp::Value(sim->state->PC);
 			}
 			else if(regIndex == 34) // FCX register
-				continue; // actualValue = clp::Value(sim->state->FCX);
+				actualValue = clp::Value(sim->state->FCX);
+			else if(regIndex == 36)
+				actualValue = clp::Value(sim->state->CTX);
+			else
+				continue;
 			clpState.set(clp::Value(clp::REG, regIndex), actualValue);
 		}
 	}

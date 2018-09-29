@@ -52,6 +52,9 @@ typedef struct tricore_memory_t
 using namespace otawa;
 namespace otawa { namespace tricore16P {
 
+Vector<Address> modifiedAddress;
+bool modifiedAddressb = false;
+
 
 unsigned long ENDNUM = 0xFFFFFFFF;
 static void spyx(tricore_memory_t *mem, tricore_address_t addr, tricore_size_t size, tricore_access_t access, void *data);
@@ -267,6 +270,7 @@ protected:
 
             if(!following && (inst->addr == addressToTrigger.offset())) {
             	following = true;
+            	modifiedAddressb = true;
             }
 
             if(following) {
@@ -306,13 +310,14 @@ protected:
         			elm::cerr << __SOURCE_INFO__ << __YELLOW__ << "No semantic instruction for " << buffer << ", of type " << (int)(inst->ident) << " .... program terminates" << __RESET__ << endl;
         			std::exit(1);
         		}
+#ifdef PRINT_EACH_STEP
     			sb.print(elm::cout, workspace()->platform());
-
+#endif
 
         		Inst* currentInst = clpManager.inst();
         		clp::State currentCLPState;
 				while(step) {
-#define PRINT_EACH_STEP
+//#define PRINT_EACH_STEP
 #ifdef PRINT_EACH_STEP
 					clpManager.sem().print(elm::cout, workspace()->platform());
 					elm::cout << " for instruction " << clpManager.inst() << endl;
@@ -326,6 +331,10 @@ protected:
 						break;
 				}
 
+
+//				for(Vector<Address>::Iter vai(modifiedAddress); vai; vai++)
+//					elm::cout << "need to check " << vai << endl;
+				elm::cout << "need to check " <<  modifiedAddress.count() << " nodes" << endl;
 
         		// check actual state vs abstract state at the end of each instruction
 				for(clp::State::Iter clpsi(currentCLPState); clpsi; clpsi++) {
@@ -341,11 +350,14 @@ protected:
 						else if(regID == 33) // PSW register
 							actualValue = clp::Value(sim->state->PC);
 						else if(regID == 34) // FCX register
-							actualValue = clp::Value(sim->state->FCX);
+							continue; // actualValue = clp::Value(sim->state->FCX);
+						else
+							continue;
+
 						// now see if the actual value falls into the abstract domain
 						clp::Value actualValue2 = actualValue; // need another value because inter changes the calling object
 						if(actualValue2.inter(*clpsi) != actualValue) {
-								elm::cerr << "REG " << workspace()->process()->platform()->findReg(regID) << ", actual value = " << actualValue << ", abstract Value = " << (*clpsi) << endl;
+								elm::cerr << "REG " << workspace()->process()->platform()->findReg(regID) << ", actual value = " << actualValue << ", abstract Value = " << (*clpsi) << ", actualValue2 = " << actualValue2 << endl;
 								elm::cerr << __GREEN__ << "executing " << Address(inst->addr) << " @ CFG " << working_cfg->index() << " BB " << working_bb->index() << " ";
 				                tricore_disasm(buffer, inst);
 				                elm::cerr << buffer << " @ " << count << " => ";
@@ -665,11 +677,11 @@ tricore_sim_t *StateVerifier::sim = 0;
 
 static void spyx(tricore_memory_t *mem, tricore_address_t addr, tricore_size_t size, tricore_access_t access, void *data) {
 
-	if(StateVerifier::BIGNUMa < StateVerifier::BIGNUM)
-		return;
-
-	if(StateVerifier::currPC == addr) // do not print the instruction loading
-		return;
+//	if(StateVerifier::BIGNUMa < StateVerifier::BIGNUM)
+//		return;
+//
+//	if(StateVerifier::currPC == addr) // do not print the instruction loading
+//		return;
 
 	uint8_t tmp1 = 0;
 	uint8_t tmp2 = 0;
@@ -708,9 +720,11 @@ static void spyx(tricore_memory_t *mem, tricore_address_t addr, tricore_size_t s
 
 
 	if(access == tricore_access_read)
-		printf("read %dB @ 0x%X with data 0x%X\n", size, addr, result);
+		{} // printf("read %dB @ 0x%X with data 0x%X\n", size, addr, result);
 	else {
 		printf("write %dB @ 0x%X with data 0x%X\n", size, addr, result);
+		if(modifiedAddressb)
+			modifiedAddress.add(Address(addr));
 	}
 }
 

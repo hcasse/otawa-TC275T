@@ -321,6 +321,14 @@
 
 </platform>
 <script>
+	<step processor="otawa::tricore16P::CLPInitiator"></step>
+	<step processor="otawa::tricore16P::ContextValueInfo"></step>
+	<step processor="otawa::clp::CLPAnalysis"></step>
+	<step processor="otawa::tricore16P::AddressExtracter"></step>
+</script>
+
+
+<script1>
 
 	<step processor="otawa::clp::CLPAnalysis"></step>
 	<step processor="otawa::tricore16P::StateVerifier"></step>
@@ -358,7 +366,7 @@
 	<step require="otawa::ipet::WCET_FEATURE"/>
 
 	<step processor="otawa::display::ILPSystemDisplayer"/>
-</script>
+</script1>
 
 
 </otawa-script>
