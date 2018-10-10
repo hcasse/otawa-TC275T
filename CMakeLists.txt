@@ -25,7 +25,7 @@ set(NAMESPACE	"otawa")	# namespace (classes must be contained in the namespace o
 set(FILES		pipeline16P.xml mem.xml cache16P.xml cache16E.xml)				# cache, pipeline, memory
 set(MODULES	)				# used modules (to pass to otawa-config=
 #set(SOURCES 	clp_analysis.cpp clp_symbolic_expr.cpp ContextualValueInfo.cpp MemoryAccessIdentifier.cpp AddressExtracter.cpp CLPSimulator.cpp CLPInitiator.cpp verification.cpp tricore16P.cpp prod16P.h mreg.h pipe.h)				# sources of the plugin
-set(SOURCES 	ContextualValueInfo.cpp MemoryAccessIdentifier.cpp AddressExtracter.cpp CLPSimulator.cpp CLPInitiator.cpp verification.cpp tricore16P.cpp prod16P.h mreg.h pipe.h)				# sources of the plugin
+set(SOURCES 	ContextualValueInfo.cpp MemoryAccessIdentifier.cpp AddressExtracter.cpp CLPSimulator.cpp CLPInitiator.cpp verification.cpp PrefetchCategoryAnalysis.cpp tricore16P.cpp prod16P.h mreg.h pipe.h)				# sources of the plugin
 
 
 # C++ 11

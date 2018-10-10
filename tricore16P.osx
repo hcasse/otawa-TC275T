@@ -33,13 +33,43 @@
 
 
 <configuration>
+	<!--
+		The caches operate on two different bus frequencies:
+			PCache works with FSI2
+			DCache works with FSI
+		One must to find out these frequencies via:
+			IfxScuCcu_getFsiFrequency() and IfxScuCcu_getFsi2Frequency(), they are usual the same as the SRI freqency that CPU runs.
+		To find CPU and SRI frequencies, one can use:
+			IfxScuCcu_getCpuFrequency(IfxCpu_getCoreId()) and IfxScuCcu_getSriFrequency().
+		In general, CPU/SRI operates on 200Mhz, while FSI2 and FSI operates on either 100MHz by default.
+		From the table 2-16 in section 2.7, page 2-121, the initial PFlash access time, which happens when there is a PCache miss, is caculated as:
+			5 + configured PFlash wait states
+		The 5-cycle is assumed to be the time to access non-local on-chip storage.  On page 2-14, in the "request latency" section, that 1/2 cycles are
+		required to complete request/address phase, if there is no other masters in the arbitration phase. The other 3/4 cycles (need to check) are due to
+		the data phase, where the actual information is transfered from the slave via SRI. This may due to the uses of "BTR4" transfers which takes 4 cycles.
+		(Question) Since the access are based on critical-word first, why needs the whole BTR4 cycles?
+		
+		The number of PFlash (same for DFlash) wait states, is the sum of (1) the ECC decoding time WSECPF, plus (2) the read access time WSPFLASH (p10-67).
+		They can be obtained by reading the FCON reguster at 0xF8002014, and the fields are explained in p10-67 and p10-68.
+		From observation, the bit fields contains the following values/meanings:
+			WSPFLAH: 0100b, 5 FSI2 cycles of PFlash read access time
+			WSECPF: 00b, 1 FSI2 cycle of PFlash ECE decoding time
+			WSDFLASH: 011111b, 32 FSI cycles of DFlash read access time
+			WSECDF: 010, 3 FSI cycles of DFlash ECE decoding time.
+				
+		Since FSI and FSI2 are half speed (100Mhz) comparing to the CPU/SRI frequency (200Mhz), hence 1 FSI/FSI2 cycle equals to 2 CPU/SRI cycles.
+		
+		Therefore the PFlash initial access time = SRI_time + (PFlash_read_time + PFlash_ECC_time)*2 = 5 + (5 + 1)*2 = 17 cycles
+		DFlash access time = SRI_time + (DFlash_read_time + DFlash_ECC_time)*2 = 5 + (32 + 3)* 2 = 75 cycles		 
+	 -->
+
 	<item name="pfrws" type="range" default="0" label="Program Flash read wait states" low="0" high="15">
 		<help>Defines the number of wait state for a PFLASH read. Set by register FCON.WSPFLASH </help>
 	</item>
 	<item name="dfrws" type="range" default="0" label="Data Flash read wait states" low="0" high="63">
 		<help>Defines the number of wait state for a DFLASH read. Set by register FCON.WSDFLASH </help>
 	</item>
-	<item name="gpath" type="string" default="" label="debug: graph path">
+	<item name="gpath" type="string" default="exeg" label="debug: graph path">
 		<help>Path to a directory where exegraph will be dumped.</help>
 	</item>
 	<item name="core" type="enum" label="Type of core">
@@ -74,12 +104,12 @@
 				<size>0x00122880</size> <!-- 120 KBytes /-->
 				<type>SPM</type>
 				<writable>true</writable>
-				<cachable>false</cachable>
+				<cachable>false</cachable> <!--  access remote DSPR should be cache-able -->
 				<xsl:if test="$core=2">
 					<latency>1</latency>
 				</xsl:if>
 				<xsl:if test="$core!=2">
-					<latency>3</latency>				<!-- TODO -->
+					<latency>3</latency>				<!-- TODO --> <!--  2 cycles SRI request and 1 cycle critical word, p2-121 & p2-14 -->
 				</xsl:if>
 			</bank>
 			<bank>
@@ -93,7 +123,7 @@
 					<latency>1</latency>
 				</xsl:if>
 				<xsl:if test="$core!=2">
-					<latency>3</latency>				<!-- TODO -->
+					<latency>3</latency>				<!-- TODO --> <!-- TODO --> <!--  2 cycles SRI request and 1 cycle critical word, p2-121 & p2-14 -->
 				</xsl:if>
 			</bank>
 			
@@ -320,12 +350,30 @@
 	</bht>
 
 </platform>
+
+
 <script>
+	<config name="otawa::ipet::EXPLICIT" value="true"/>
+	<step require="otawa::VIRTUALIZED_CFG_FEATURE"/>
+	<step require="otawa::branch::CATEGORY_FEATURE"/>
+	<step require="otawa::ICACHE_CATEGORY2_FEATURE"/> <!--  collect LBlocks, identifying when a cache load is necessary -->
+	<step require="otawa::tricore16P::PREFETCH_CATEGORY_FEATURE"/>
+	<step require="otawa::ICACHE_ONLY_CONSTRAINT2_FEATURE"/>\
+	<step processor="otawa::tricore16P::BBTimer">
+		<config name="otawa::tricore16P::CORE" value="1"/>
+		<!--config name="otawa::GRAPHS_OUTPUT_DIRECTORY" value="exeg"/-->
+	</step>
+	<step require="otawa::ipet::WCET_FEATURE"/>	
+</script>
+
+
+<script2>
 	<step processor="otawa::tricore16P::CLPInitiator"></step>
 	<step processor="otawa::tricore16P::ContextValueInfo"></step>
 	<step processor="otawa::clp::CLPAnalysis"></step>
 	<step processor="otawa::tricore16P::AddressExtracter"></step>
-</script>
+
+</script2>
 
 
 <script1>
@@ -368,6 +416,27 @@
 	<step processor="otawa::display::ILPSystemDisplayer"/>
 </script1>
 
+
+<script_original>
+	<config name="otawa::ipet::EXPLICIT" value="true"/>
+	<step require="otawa::VIRTUALIZED_CFG_FEATURE"/>
+	<xsl:if test="$core!=0">
+		<step require="otawa::branch::CATEGORY_FEATURE"/>
+	</xsl:if>
+	<step require="otawa::ICACHE_CATEGORY2_FEATURE"/>
+	<step require="continental::tricore16P::PREFETCH_CATEGORY_FEATURE"/>
+	<step require="otawa::ICACHE_ONLY_CONSTRAINT2_FEATURE"/>
+	<step processor="continental::tricore16P::BBTimer">
+		<xsl:if test="$gpath!=''">
+			<config name="otawa::GRAPHS_OUTPUT_DIRECTORY" value="{$gpath}"/>
+		</xsl:if>
+		<config name="continental::tricore16P::CORE" value="{$core}"/>
+	</step>
+	<!--step require="otawa::ipet::EDGE_TIME_FEATURE"/-->
+	<step require="otawa::ipet::WCET_FEATURE"/>
+
+	<step processor="otawa::display::ILPSystemDisplayer"/>
+</script_original>
 
 </otawa-script>
 	

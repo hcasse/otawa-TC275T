@@ -120,6 +120,17 @@ static void buildContextualPaths2(CFG* cfg, ContextualPath& path) {
 
 void ContextValueInfo::setup(WorkSpace *ws) {
 	const CFGCollection *cfgc = INVOLVED_CFGS(ws);
+
+	int iii = 0;
+	int bbx = 0;
+	for(CFGCollection::BlockIter bbb(cfgc); bbb; bbb++)
+		if(bbb->isBasic()) {
+		iii = iii + bbb->toBasic()->count();
+		bbx++;
+		}
+
+	elm::cout << iii << " instructions on " << bbx << " BBs" << endl;
+
 	CFG* cfg = *cfgc[0];
 
 	ContextualPath path2;

@@ -22,7 +22,7 @@
 			<cachable>true</cachable>
 		</bank>
 		<bank>
-			<name>SRAM</name>   <!--sram cachable-->
+			<name>SRAM</name>   <!--LMU sram cachable-->
 			<address><offset>0x90000000</offset></address>
 			<size>0x00100000</size>
 			<type>SPM</type>
@@ -32,7 +32,7 @@
 			<cachable>true</cachable>
 		</bank>
 		<bank>                     
-			<name>SRAM</name>   <!--sram no cachable-->
+			<name>SRAM</name>   <!--LMU sram no cachable-->
 			<address><offset>0xB0000000</offset></address>
 			<size>0x00100000</size>
 			<type>SPM</type>

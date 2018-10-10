@@ -10,6 +10,7 @@
 #include <otawa/cfg/features.h>
 #include <otawa/loader/gliss.h>
 #include <elm/data/HashMap.h>
+#include "Prefetch.h"
 
 using namespace otawa;
 
@@ -19,13 +20,7 @@ using namespace otawa;
 
 namespace otawa { namespace tricore16P {
 
-typedef enum {
-	IP = 0,
-	LS = 1,
-	LP = 2,
-	FP = 3,
-	BR = 4
-} pipe_t;
+
 
 /*
  * TIMING of Instructions
@@ -64,15 +59,17 @@ typedef enum {
  *		look with branch-prediction
  */
 
+
 typedef enum {
-	PF_NONE = 0,	// invalid value
-	PF_NC = 1,		// not classified
-	PF_ALWAYS = 2,	// always pre-fetched
-	PF_NEVER = 3	// never pre-fetched
-} pf_t;
+	IP = 0,
+	LS = 1,
+	LP = 2,
+	FP = 3,
+	BR = 4
+} pipe_t;
+
 
 typedef Pair<Address, pf_t> pf_info_t;
-Identifier<pf_t> PREFETCHED("otawa::tricore16P::PREFETECHED", PF_NONE);
 
 io::Output& operator<<(io::Output& out, pf_t p) {
 	static cstring msgs[] = {
@@ -87,191 +84,7 @@ io::Output& operator<<(io::Output& out, pf_t p) {
 }
 
 
-class PrefetchEvent: public otawa::etime::Event {
-public:
-	PrefetchEvent(Inst *inst, pf_t prefetch, LBlock *lblock): Event(inst), pf(prefetch), lb(lblock) { }
-	// the Event in general is associated with the edge
-	// if it is not the case, the Event will be associated with where the instruction
-	// belongs to, e.g. the PREFIX or the BLOCK
-	// FIXME for the moment being, the 'place' for Event will be NO_PLACE
-	virtual etime::kind_t kind(void) const { return etime::FETCH; }
-	virtual ot::time cost(void) const { return 0; }		// TO DO
-	virtual etime::type_t type(void) const { return etime::LOCAL; /* etime::BLOCK; */ }
 
-	virtual etime::occurrence_t occurrence(void) const {
-		switch(pf) {
-		case PF_NC:		return etime::SOMETIMES;
-		case PF_ALWAYS:	return etime::NEVER;	// this occurrence describes the high time frequency (always pre-feched -> never long time to prefetch)
-		case PF_NEVER:	return etime::ALWAYS;	// this occurrence describes the high time frequency (never pre-feched -> always long time to prefetch)
-		default:		ASSERT(false); return etime::SOMETIMES;
-		}
-	}
-
-	virtual cstring name(void) const { return "PFlash Prefetch"; }
-	virtual string detail(void) const { return name(); }
-
-	virtual bool isEstimating(bool on) { return on; }
-
-	virtual void estimate(ilp::Constraint *cons, bool on) {
-		ASSERT(on);
-		ASSERT(MISS_VAR(lb));
-		cons->addLeft(1, MISS_VAR(lb));
-	}
-
-	virtual int weight(void) const {
-		switch(cache::CATEGORY(lb)) {
-		case INVALID_CATEGORY:		ASSERT(false); return 0;
-		case ALWAYS_HIT:			return 0;
-		case FIRST_MISS: {
-				Block *b = ENCLOSING_LOOP_HEADER(cache::CATEGORY_HEADER(lb));
-				BasicBlock *pbb = b->toBasic();
-				if(pbb) return WEIGHT(pbb); else return 1;
-			}
-		case ALWAYS_MISS:
-		case FIRST_HIT:
-		case NOT_CLASSIFIED:		return WEIGHT(lb->bb());
-		}
-	}
-
-private:
-	pf_t pf;
-	LBlock *lb;
-};
-
-
-class PrefetchCategoryAnalysis: public BBProcessor {
-public:
-	static p::declare reg;
-	PrefetchCategoryAnalysis(void): BBProcessor(reg) {
-	}
-
-protected:
-
-	virtual void processBB(WorkSpace *ws, CFG *cfg, Block *b) {
-
-		if(!b->isBasic())
-			return;
-			// ASSERTP(0, << b << " is not a basic block.");
-
-		BasicBlock *bb = b->toBasic();
-
-		if(bb->isEnd())
-			return;
-
-
-		// get L-Blocks
-		// genstruct::AllocatedTable<LBlock* >* blocks = BB_LBLOCKS(bb);
-		AllocArray<LBlock* >* blocks = BB_LBLOCKS(bb);
-
-		// process each BB
-		for(int i = 0; i < blocks->size(); i++){
-
-			// get LBlock
-			LBlock *block = blocks->get(i);
-			cache::category_t cat = cache::CATEGORY(block);
-
-			// compute prefetched
-			pf_t prefetch_cat = PF_NONE;
-			switch(cat) {
-			case cache::FIRST_HIT:
-			case cache::INVALID_CATEGORY:	ASSERTP(false, "invalid_category found"); break;
-			case cache::ALWAYS_HIT:			prefetch_cat = PF_NONE; break;
-			case cache::ALWAYS_MISS:
-			case cache::FIRST_MISS:
-			case cache::NOT_CLASSIFIED:		prefetch_cat = findPrefetchCategory(i, blocks, bb); break;
-			}
-
-			// hook it
-			if(prefetch_cat != PF_NONE) {
-				PREFETCHED(block) = prefetch_cat;
-				etime::EVENT(bb).add(new PrefetchEvent(block->instruction(), prefetch_cat, block));
-			}
-			if(logFor(LOG_BB))
-				log << "\t\t\t" << block->address() << "\t" << prefetch_cat << io::endl;
-		}
-	}
-
-private:
-
-	pf_t join(pf_t p1, pf_t p2) {
-		if(p1 == p2)
-			return p1;
-		else if(p1 == PF_NONE)
-			return p2;
-		else if(p2 == PF_NONE)
-			return p1;
-		else
-			return PF_NC;
-	}
-
-	// pf_t findPrefetchCategory(int i, genstruct::AllocatedTable<LBlock* >* blocks, BasicBlock *bb) {
-	pf_t findPrefetchCategory(int i, AllocArray<LBlock* >* blocks, BasicBlock *bb) {
-		pf_t prefetch_cat = PF_NONE;
-		LBlock *block;
-
-		// find previous LBlock
-		if(i != 0) {
-			block = blocks->get(i-1);
-
-			//find category of previous LBlock
-			cache::category_t cat = cache::CATEGORY(block);
-			switch(cat) {
-			case cache::INVALID_CATEGORY:
-			case cache::FIRST_HIT:			ASSERTP(false, "invalid_category found"); break;
-			case cache::ALWAYS_HIT:			prefetch_cat = PF_NEVER; break;
-			case cache::ALWAYS_MISS:		prefetch_cat = PF_ALWAYS; break;
-			case cache::FIRST_MISS:			prefetch_cat = PF_ALWAYS; break;
-			case cache::NOT_CLASSIFIED:		prefetch_cat = PF_NC; break;
-			}
-		}
-
-		// find last LBlock of previous BBlock
-		else {
-			for(BasicBlock::EdgeIter edge = bb->ins(); edge; edge++) {
-
-				if(!edge->source()->isBasic())
-					continue;
-
-				BasicBlock *inbb = edge->source()->toBasic(); // FIXME: if not a basic block and then...?
-
-				// not in sequence: never prefetched
-				if(inbb->topAddress() != bb->address())
-					prefetch_cat = join(prefetch_cat, PF_NEVER);
-
-				// else examine what happens before
-				else {
-
-					// get last LBlock of previous BB category
-					// genstruct::AllocatedTable<LBlock* >* blocks_prev = BB_LBLOCKS(inbb);
-					AllocArray<LBlock* >* blocks_prev = BB_LBLOCKS(inbb);
-					LBlock *block_prev = blocks_prev->get(blocks_prev->size()-1);
-					cache::category_t cat = cache::CATEGORY(block_prev);
-
-					// examine the category
-					switch(cat) {
-					case cache::FIRST_HIT:
-					case cache::INVALID_CATEGORY:	ASSERTP(false, "invalid_category found"); break;
-					case cache::ALWAYS_HIT:			prefetch_cat = join(prefetch_cat, PF_NEVER); break;
-					case cache::FIRST_MISS:
-					case cache::ALWAYS_MISS:		prefetch_cat = join(prefetch_cat, PF_ALWAYS); break;
-					case cache::NOT_CLASSIFIED:		prefetch_cat = join(prefetch_cat, PF_NC); break;
-					}
-
-				}
-			}
-		}
-
-		return prefetch_cat;
-	}
-};
-
-Feature<PrefetchCategoryAnalysis> PREFETCH_CATEGORY_FEATURE("otawa::tricore16P::PREFETCH_CATEGORY_FEATURE");
-
-
-p::declare PrefetchCategoryAnalysis::reg = p::init("otawa::tricore16P::PrefetchCategoryAnalysis", Version(1, 0, 0))
-	.make<PrefetchCategoryAnalysis>()
-	.provide(PREFETCH_CATEGORY_FEATURE)
-	.require(otawa::ICACHE_CATEGORY2_FEATURE);
 
 class ExeGraph: public etime::EdgeTimeGraph {
 public:
@@ -407,7 +220,7 @@ public:
 				Option<ParExeNode *> prev = nodes.get(node->stage());
 				if(prev) {
 					if(*prev)
-						new ParExeEdge(*prev, *node, ParExeEdge::SOLID);
+						new ParExeEdge(*prev, *node, ParExeEdge::SOLID, 0, "prog");
 					nodes.put(node->stage(), *node);
 				}
 			}
@@ -703,7 +516,9 @@ protected:
 		PropList props;
 
 		ExeGraph *graph = new ExeGraph(this->workspace(), _microprocessor, ressources(), seq, props, core == 0);
+		graph->setExplicit(true);
 		graph->build();
+
 		return graph;
 	}
 
