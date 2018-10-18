@@ -20,7 +20,8 @@ using namespace otawa;
 
 namespace otawa { namespace tricore16P {
 
-
+#define FIRST_EXE_STAGE 0
+#define SECOND_EXE_STAGE 1
 
 /*
  * TIMING of Instructions
@@ -132,13 +133,13 @@ public:
 			if(stage->category() == ParExeStage::EXECUTE)
 				for(int i = 0; i < stage->numFus(); i++) {
 					ParExePipeline *pfu = stage->fu(i);
-					if(pfu->firstStage()->name().startsWith("IP"))
+					if(pfu->firstStage()->name().startsWith("EXE_I"))
 						ip = pfu;
-					else if(pfu->firstStage()->name().startsWith("LP"))
+					else if(pfu->firstStage()->name().startsWith("EXE_L"))
 						lp = pfu;
-					else if(pfu->firstStage()->name().startsWith("LS"))
+					else if(pfu->firstStage()->name().startsWith("EXE_M"))
 						ls = pfu;
-					else if(pfu->firstStage()->name().startsWith("FP"))
+					else if(pfu->firstStage()->name().startsWith("EXE_F"))
 						fp = pfu;
 					else
 						ASSERTP(false, pfu->firstStage()->name());
@@ -196,38 +197,67 @@ public:
 	 * @param stage		Execution stage number to set delay for.
 	 * @param delay		Delay in cycles.
 	 */
-	void setDelay(int stage, int delay) {
-		findExeAt(cur_inst, stage)->setLatency(delay);
+//	void setDelay(int stage, int delay) {
+//		findExeAt(cur_inst, stage)->setLatency(delay);
+//	}
+
+	void kkk(List<ParExeStage *> *list_of_stages){
+		static string program_order("program order");
+
+		// select list of in-order stages
+		List<ParExeStage *> *list;
+		if(list_of_stages != NULL)
+			list = list_of_stages;
+		else
+			list = _microprocessor->listOfInorderStages();
+
+		// create the edges
+		for(StageIterator stage(list) ; stage ; stage++) {
+			int count = 1;
+			ParExeNode *previous = NULL;
+			int prev_id = 0;
+			for(ParExeStage::NodeIterator node(stage); node; node++){
+				if(previous){
+					if(stage->width() == 1)
+						new ParExeEdge(previous, node, ParExeEdge::SOLID, 0, program_order);
+				}
+				previous = node;
+			}
+		}
 	}
 
 	void addEdgesForProgramOrder(List<ParExeStage *> *list_of_stages) {
-		ParExeGraph::addEdgesForProgramOrder(list_of_stages);
+		// make sure two instructions that uses the same kind of pipeline goes one after another
+		//ParExeGraph::addEdgesForProgramOrder(list_of_stages);
+		kkk(list_of_stages);
 
+		// 3 stages for each functional units
+		// for the 2nd and 3rd stage, an instruction can only run after the previous instruction of the same kind of pipeline finishes
 		// prepare map
 		elm::HashMap<ParExeStage *, ParExeNode *> nodes;
 		ParExePipeline *pipes[] = { ip, ls, lp, fp };
 		for(int i = 0; i < 4; i++) {
+			// there are two stages for the execution
 			ParExePipeline::StageIterator stage(pipes[i]);
-			stage++;
-			nodes.put(*stage, 0);
+			nodes.put(*stage, 0); // initial value for the map is nullptr as there is no previous parexenode
 			stage++;
 			nodes.put(*stage, 0);
 		}
 
 		// add missing edges
-		for(InstIterator inst(this); inst; inst++)
+		for(InstIterator inst(this); inst; inst++) {
 			for(ParExeInst::NodeIterator node(inst); node; node++) {
 				Option<ParExeNode *> prev = nodes.get(node->stage());
-				if(prev) {
+				if(prev) { // if there is a prev node
 					if(*prev)
-						new ParExeEdge(*prev, *node, ParExeEdge::SOLID, 0, "prog");
-					nodes.put(node->stage(), *node);
+						new ParExeEdge(*prev, *node, ParExeEdge::SOLID, 0, "prog-pipe");
+					nodes.put(node->stage(), *node); // update the map
 				}
 			}
+		} // for each instruction
 	}
 
-	void addEdgesForFetch(void) {
-
+	virtual void addEdgesForFetch(void) {
 		// common part
 		ParExeGraph::addEdgesForFetch();
 		if(!isCoreE())
@@ -275,7 +305,15 @@ public:
 		}
 	}
 
-	virtual void addEdgesForMemoryOrder(void) { }
+	virtual void addEdgesForMemoryOrder(void) {
+		// not implemented, but used by the void ParExeGraph::build()
+
+	}
+
+
+	virtual void addEdgesForDataDependencies(void) {
+		findDataDependencies();
+	}
 
 	virtual void findDataDependencies(void) {
 		for(InstIterator inst(this); inst; inst++) {
@@ -328,6 +366,7 @@ public:
 	void consume(const hard::Register *reg, ParExeNode *node) {
 		//cerr << "DEBUG:\tconsume " << reg->name() << io::endl;
 		ParExeNode *producer = regs[reg->platformNumber()];
+		elm::cout << "read reg " << reg->name() << " with producer = " << (void*)producer << endl;
 		if(producer != NULL) {
 			node->addProducer(producer);
 			new ParExeEdge(producer, node, ParExeEdge::SOLID, 0, reg->name());
@@ -375,13 +414,20 @@ public:
 	 */
 	void dependenciesForALU(ParExeInst *inst) {
 		int time = tricore_prod(info, inst->inst(), _coreE);
-		ParExeNode *cons_node = findExeAt(inst, max(0, 2 - time));
-		ParExeNode *prod_node = findExeAt(inst, 2);
+#ifdef USE_ORIGINAL
+		ParExeNode *cons_node = findExeAt(inst, max(0, 2 - time)); // why consume at max, which means if it produce the result at the first cycle, eg. time = 0, the max (0,2) will be 2, the consume stage will be at 2...
+		ParExeNode *prod_node = findExeAt(inst, 2); // last FU is the production node
+#else
+		ParExeNode *cons_node = findExeAt(inst, FIRST_EXE_STAGE); // will consume at the first node
+		ParExeNode *prod_node = findExeAt(inst, min(SECOND_EXE_STAGE, time));
+#endif
+		elm::cout << "For " << inst->inst() << ", cons = " << cons_node->name() << ", prod_node = " << prod_node->name() << endl;
+
 		reg_set_t null;
 		consume(inst->inst(), cons_node, null);
 		produce(inst->inst(), prod_node, null);
 		if(time > 2)
-			prod_node->setLatency(time - 1);
+			prod_node->setLatency(time/* - 1*/);
 	}
 
 	/**
@@ -389,8 +435,8 @@ public:
 	 * @param inst	Concerned instruction.
 	 */
 	void dependenciesForLoad(ParExeInst *inst) {
-		ParExeNode *addr_node = findExeAt(inst, 1);
-		ParExeNode *mem_node = findExeAt(inst, 2);
+		ParExeNode *addr_node = findExeAt(inst, FIRST_EXE_STAGE);
+		ParExeNode *mem_node = findExeAt(inst, SECOND_EXE_STAGE);
 
 		// consume registers
 		reg_set_t null;
@@ -468,6 +514,9 @@ public:
 	 */
 	void dependenciesForBranch(ParExeInst *inst) {
 		// TODO
+		int time = tricore_prod(info, inst->inst(), _coreE);
+		ParExeNode *prod_node = findExeAt(inst, min(SECOND_EXE_STAGE, time));
+		prod_node->setLatency(time);
 	}
 
 private:

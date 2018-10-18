@@ -3,8 +3,8 @@
 <cache-config>
 	<icache>						<!-- 8 KB -->
 		<block_bits>5</block_bits>	<!-- 32 B block /-->
-		<way_bits>2</way_bits>		<!-- 4 ways  -->
-		<row_bits>6</row_bits>		<!-- 64 sets /-->
+		<way_bits>1</way_bits>		<!-- 2 ways  -->
+		<row_bits>8</row_bits>		<!-- 128 sets /-->
 	</icache>
 	<dcache>						<!-- 128 B -->
 		<block_bits>5</block_bits>	<!-- 32 B block-->

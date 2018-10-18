@@ -37,88 +37,63 @@
 			<width>1</width>
 			<type>FETCH</type>
 		</stage>
-		<stage id="F2">
-			<name>F2</name>
-			<width>
-				<xsl:if test="$core=0">1</xsl:if>
-				<xsl:if test="$core!=0">3</xsl:if>
-			</width>
+		<stage id="EXE_D">
+			<name>EXE_D</name>
+			<width>1</width> <!-- p271 sec 5.4.3 The TC1.6E issues a single instruction per clock cycle, and as such no more than one instruction will be executed in one clock cycle. -->
 			<type>LAZY</type>
 		</stage>
-		<stage id="EX">
-			<name>E1</name>
-			<width>
-				<xsl:if test="$core=0">1</xsl:if>
-				<xsl:if test="$core!=0">3</xsl:if>
-			</width>
+		<stage id="EXE">
+			<name>EXE</name>
+			<width>2</width>
 			<type>EXEC</type>
 			<ordered>true</ordered>
 			<fus>
-				<fu id="INT">                       <!-- Integer pipeline -->
-					<name>IP</name>
+				<fu id="EXE_I">                       <!-- Integer pipeline -->
+					<name>EXE_I</name>
 					<width>1</width>
-					<latency>3</latency>
+					<latency>2</latency>
 					<pipelined>true</pipelined>
 				</fu>
-				<xsl:if test="$core=1 or $core=2">
-					<fu id="LP">                        <!-- Loop pipeline (missig in core E) -->
-						<name>LP</name>
-						<width>1</width>
-						<latency>3</latency>
-						<pipelined>true</pipelined>
-					</fu>
-				</xsl:if>
-				<fu id="LS">                        <!-- Load/Store pipeline -->
-					<name>LS</name>
+				<fu id="EXE_M">                        <!-- Load/Store pipeline -->
+					<name>EXE_M</name>
 					<width>1</width>
-					<latency>3</latency>
+					<latency>2</latency>
 					<pipelined>true</pipelined>
 					<mem>true</mem>
 				</fu>
-				<fu id="FP">                        <!-- Float Point Unit pipeline -->
-					<name>FP</name>
+				<fu id="EXE_F">                        <!-- Float Point Unit pipeline -->
+					<name>EXE_F</name>
 					<width>1</width>
-					<latency>3</latency>
+					<latency>2</latency>
 					<pipelined>true</pipelined>
 				</fu>
 			</fus>
 			<dispatch>
 				<inst>
 					<type>0x80000000</type> <!-- IS_LP --> <!--  types are defined in otawa-tricore/kind.nmp -->
-					<xsl:if test="$core=0"><fu ref="LS"/></xsl:if> <!-- p271 Loop Pipeline is merged into Load/Store Pipeline in the E core -->					
-					<xsl:if test="$core=1 or $core=2"><fu ref="LP"/></xsl:if>
+					<fu ref="EXE_M"/> <!-- p271 Loop Pipeline is merged into Load/Store Pipeline in the E core -->					
 				</inst>
 				<inst>
 					<type>0x40000000</type>  <!-- IS_LS --> <!-- Load/Store Pipeline -->
-					<fu ref="LS"/>
+					<fu ref="EXE_M"/>
 				</inst>
 				<inst>
 					<type>0x20000000</type>  <!-- IS_FP -->
-					<fu ref="FP"/>
+					<fu ref="EXE_F"/>
 				</inst>
 				<inst>
 					<type></type>
-					<fu ref="INT"/>
+					<fu ref="EXE_I"/>
 				</inst>
 			</dispatch>
 		</stage>
-		<stage id="CM">
-			<name>E2</name>		<!-- TODO rename CM -->
-			<width>
-				<xsl:if test="$core=0">1</xsl:if>
-				<xsl:if test="$core!=0">3</xsl:if>
-			</width>
+		<stage id="CM"> <!-- 5.4.4 general purpose register file -->
+			<name>CM</name>
+			<width>1</width> <!-- (?) two pipelines to the file, p272, sec 5.4.4 -->
 			<type>COMMIT</type>
 		</stage>
 	</stages>
-	<queues>
-		<queue>
-			<name>FETCH_QUEUE</name>
-			<size>6</size>
-			<input ref="F1"/>
-			<output ref="F2"/>
-		</queue>
-	</queues>
+
 </processor>
 			
 

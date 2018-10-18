@@ -11,7 +11,7 @@
 <name>Aurix (TC275T) (TriCore 1.6)</name>
 
 <info>
-	<h1>Tricore16P</h1>
+	<h1>Tricore16E</h1>
 	
 	<h2>Differences between core E and core P</h2>
 	<ul>
@@ -83,16 +83,9 @@
 <platform>
 
 	<!-- cache definition -->
-	<xsl:if test="$core=0">
-		<xi:include href="tricore16P/cache16E.xml"/>
-	</xsl:if>
-	<xsl:if test="$core=1">
-		<xi:include href="tricore16P/cache16P.xml"/>
-	</xsl:if>
-
+	<xi:include href="tricore16P/cache16E.xml"/>
 	<!-- pipeline definition -->
-	<xi:include href="tricore16P/pipeline16P.xml"/>
-
+	<xi:include href="tricore16P/pipeline16E.xml"/>
 	<!-- memory definition -->
 	<memory>
 		<banks>
@@ -232,7 +225,8 @@
 				<address><offset>0x80000000</offset></address>
 				<size>0x01000000</size> <!-- 2 MBytes /-->
 				<type>ROM</type>
-				<latency><xsl:value-of select="1+$pfrws"/></latency>
+				<!--  <latency><xsl:value-of select="1+$pfrws"/></latency>  -->
+				<latency>15</latency>
 				<write_latency>5</write_latency>
 				<writable>true</writable>
 				<cachable>true</cachable>
@@ -282,7 +276,7 @@
 				<address><offset>0xAF110000</offset></address>
 				<size>0x00080000</size> <!-- 64 KByte /-->
 				<type>ROM</type>
-				<latency><xsl:value-of select="1+$dfrws"/></latency>
+				<latency>64</latency> <!--  <latency><xsl:value-of select="1+$dfrws"/></latency>  -->
 				<write_latency>2</write_latency>
 				<writable>true</writable>
 				<cachable>false</cachable>
@@ -351,7 +345,23 @@
 
 </platform>
 
+
 <script>
+	<config name="otawa::tricore16P::CORE" value="0"/>
+	<config name="otawa::GRAPHS_OUTPUT_DIRECTORY" value="exeg"/>
+	<config name="otawa::ipet::EXPLICIT" value="true"/>
+	
+	<step require="otawa::VIRTUALIZED_CFG_FEATURE"/>
+	<step require="otawa::ICACHE_CATEGORY2_FEATURE"/> <!--  collect LBlocks, identifying when a cache load is necessary -->
+	<step require="otawa::tricore16P::PREFETCH_CATEGORY_FEATURE"/>
+	<step require="otawa::ICACHE_ONLY_CONSTRAINT2_FEATURE"/>\
+	<step processor="otawa::tricore16P::BBTimer">
+	</step>
+	<step require="otawa::ipet::WCET_FEATURE"/>	
+</script>
+
+
+<script_original>
 	<config name="otawa::ipet::EXPLICIT" value="true"/>
 	<step require="otawa::VIRTUALIZED_CFG_FEATURE"/>
 	<xsl:if test="$core!=0">
@@ -370,7 +380,7 @@
 	<step require="otawa::ipet::WCET_FEATURE"/>
 
 	<step processor="otawa::display::ILPSystemDisplayer"/>
-</script>
+</script_original>
 
 </otawa-script>
 	
