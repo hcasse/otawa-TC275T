@@ -51,7 +51,7 @@ typedef struct tricore_memory_t
 
 
 using namespace otawa;
-namespace otawa { namespace tricore16P {
+namespace otawa { namespace tricore16 {
 
 Identifier<bool> INITIALIZED("INITIALIZED", false);
 Identifier<bool> COVERED("COVERED", false);
@@ -614,7 +614,7 @@ protected:
 		/* close loader file */
 	    tricore_loader_close(loader);
 
-	    elm::cout << "Finish processing at otawa::tricore16P::CLPSimulator" << endl;
+	    elm::cout << "Finish processing at otawa::tricore16::CLPSimulator" << endl;
 
 
 	}
@@ -684,7 +684,7 @@ static void spyx(tricore_memory_t *mem, tricore_address_t addr, tricore_size_t s
 	}
 }
 
-p::declare CLPSimulator::reg = p::init("otawa::tricore16P::CLPSimulator", Version(1, 0, 0))
+p::declare CLPSimulator::reg = p::init("otawa::tricore16::CLPSimulator", Version(1, 0, 0))
 		.base(otawa::Processor::reg)
 		.maker<CLPSimulator>()
 		.require(COLLECTED_CFG_FEATURE)

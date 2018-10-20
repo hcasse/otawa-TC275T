@@ -21,7 +21,7 @@ namespace otawa {
 
 using namespace elm;
 
-namespace tricore16P {
+namespace tricore16 {
 
 // ContextValueInfo class
 class ContextValueInfo: public BBProcessor {
@@ -36,14 +36,14 @@ protected:
 private:
 };
 
-Identifier<Vector<ContextualPath>*> CONTEXTUAL_PATHS("otawa::tricore16P::CONTEXUTUAL_PATHS", nullptr);
-p::feature CONTEXT_VALUE_INFO_FEATURE("otawa::tricore16P::CONTEXT_VALUE_INFO_FEATURE", new Maker<ContextValueInfo>());
+Identifier<Vector<ContextualPath>*> CONTEXTUAL_PATHS("otawa::tricore16::CONTEXUTUAL_PATHS", nullptr);
+p::feature CONTEXT_VALUE_INFO_FEATURE("otawa::tricore16::CONTEXT_VALUE_INFO_FEATURE", new Maker<ContextValueInfo>());
 
 
-p::declare ContextValueInfo::reg = p::init("otawa::tricore16P::ContextValueInfo", Version(2, 0, 0))
+p::declare ContextValueInfo::reg = p::init("otawa::tricore16::ContextValueInfo", Version(2, 0, 0))
 	.base(BBProcessor::reg)
 	.maker<ContextValueInfo>()
-	.provide(otawa::tricore16P::CONTEXT_VALUE_INFO_FEATURE);
+	.provide(otawa::tricore16::CONTEXT_VALUE_INFO_FEATURE);
 	;
 
 ContextValueInfo::ContextValueInfo(p::declare& r)

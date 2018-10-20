@@ -20,12 +20,12 @@ CMAKE_MINIMUM_REQUIRED(VERSION 2.6)
 add_definitions(-g3 -O2)
 
 # configuration
-set(SCRIPT		"tricore16P")		# machine model
+set(SCRIPT		"tricore16")		# machine model
 set(NAMESPACE	"otawa")	# namespace (classes must be contained in the namespace otawa::model)
 set(FILES		pipeline16E.xml pipeline16P.xml mem.xml cache16P.xml cache16E.xml)				# cache, pipeline, memory
 set(MODULES	)				# used modules (to pass to otawa-config=
 #set(SOURCES 	clp_analysis.cpp clp_symbolic_expr.cpp ContextualValueInfo.cpp MemoryAccessIdentifier.cpp AddressExtracter.cpp CLPSimulator.cpp CLPInitiator.cpp verification.cpp tricore16P.cpp prod16P.h mreg.h pipe.h)				# sources of the plugin
-set(SOURCES 	ContextualValueInfo.cpp MemoryAccessIdentifier.cpp AddressExtracter.cpp CLPSimulator.cpp CLPInitiator.cpp verification.cpp PrefetchCategoryAnalysis.cpp tricore16P.cpp prod16P.h mreg.h pipe.h)				# sources of the plugin
+set(SOURCES 	ContextualValueInfo.cpp MemoryAccessIdentifier.cpp AddressExtracter.cpp CLPSimulator.cpp CLPInitiator.cpp verification.cpp PrefetchCategoryAnalysis.cpp tricore16P.cpp tricore16E.cpp TC16.h prodTC16.cpp mregTC16.cpp pipeTC16.cpp)				# sources of the plugin
 
 
 # C++ 11
@@ -42,24 +42,24 @@ endif()
 set(TRICORE_IRG	"${CMAKE_SOURCE_DIR}/../tricore/tricore.irg")
 set(GLISS_ATTR	"${CMAKE_SOURCE_DIR}/../gliss2/gep/gliss-attr")
 add_custom_command(
-	OUTPUT		"prod16P.h"
-	DEPENDS 	"prod.tpl" "prod16P.nmp" ${TRICORE_IRG}
+	OUTPUT		"prod.h"
+	DEPENDS 	"prod.tpl" "TC16.nmp" ${TRICORE_IRG}
 	COMMAND 	${GLISS_ATTR}
-	ARGS 		${TRICORE_IRG} -o prod16P.h -a prod -f -t "prod.tpl" -d "return 2;" -e ${CMAKE_SOURCE_DIR}/prod16P.nmp
+	ARGS 		${TRICORE_IRG} -o prod.h -a prod -f -t "prod.tpl" -d "return 2;" -e ${CMAKE_SOURCE_DIR}/TC16.nmp
 	VERBATIM 
 )
 add_custom_command(
 	OUTPUT		"mreg.h"
 	DEPENDS 	"mreg.tpl" "prod16P.nmp" ${TRICORE_IRG}
 	COMMAND 	${GLISS_ATTR}
-	ARGS 		${TRICORE_IRG} -o mreg.h -a mreg -f -t "mreg.tpl" -d "return 0;" -e ${CMAKE_SOURCE_DIR}/prod16P.nmp
+	ARGS 		${TRICORE_IRG} -o mreg.h -a mreg -f -t "mreg.tpl" -d "return 0;" -e ${CMAKE_SOURCE_DIR}/TC16.nmp
 	VERBATIM 
 )
 add_custom_command(
 	OUTPUT		"pipe.h"
 	DEPENDS 	"pipe.tpl" "prod16P.nmp" ${TRICORE_IRG}
 	COMMAND 	${GLISS_ATTR}
-	ARGS 		${TRICORE_IRG} -o pipe.h -a pipe -f -t "pipe.tpl" -d "return 0;" -e ${CMAKE_SOURCE_DIR}/prod16P.nmp
+	ARGS 		${TRICORE_IRG} -o pipe.h -a pipe -f -t "pipe.tpl" -d "return 0;" -e ${CMAKE_SOURCE_DIR}/TC16.nmp
 	VERBATIM 
 )
 #add_custom_command(
@@ -70,6 +70,29 @@ add_custom_command(
 #	VERBATIM 
 #)
 
+add_custom_command(
+	OUTPUT		"prodTC16.cpp"
+	DEPENDS 	"prod.h"
+	COMMAND 	cp
+	ARGS 		prod.h prodTC16.cpp
+	VERBATIM 
+)
+
+add_custom_command(
+	OUTPUT		"pipeTC16.cpp"
+	DEPENDS 	"pipe.h"
+	COMMAND 	cp
+	ARGS 		pipe.h pipeTC16.cpp
+	VERBATIM 
+)
+
+add_custom_command(
+	OUTPUT		"mregTC16.cpp"
+	DEPENDS 	"mreg.h"
+	COMMAND 	cp
+	ARGS 		mreg.h mregTC16.cpp
+	VERBATIM 
+)
 
 # script
 project(${SCRIPT})
@@ -112,8 +135,9 @@ else()
 	install(TARGETS ${SCRIPT} LIBRARY DESTINATION ${MODULE_PATH})
 endif()
 install(FILES ${SCRIPT}.eld DESTINATION ${MODULE_PATH})
-install(FILES ${SCRIPT}.osx DESTINATION ${SCRIPT_PATH})
+# install(FILES ${SCRIPT}.osx DESTINATION ${SCRIPT_PATH})
 install(FILES tricore16E.osx DESTINATION ${SCRIPT_PATH})
+install(FILES tricore16P.osx DESTINATION ${SCRIPT_PATH})
 foreach(FILE ${FILES})
 	install(FILES ${SCRIPT}/${FILE} DESTINATION ${SCRIPT_PATH}/${SCRIPT})
 endforeach()

@@ -9,9 +9,25 @@ using namespace otawa;
 using namespace otawa::cache;
 
 namespace otawa {
-namespace tricore16P {
+namespace tricore16 {
 
-Identifier<pf_t> PREFETCHED("otawa::tricore16P::PREFETECHED", PF_NONE);
+
+typedef Pair<Address, pf_t> pf_info_t;
+
+io::Output& operator<<(io::Output& out, pf_t p) {
+	static cstring msgs[] = {
+		"none",
+		"not-classified",
+		"always",
+		"never"
+	};
+	ASSERT(p >= 0 && p <= PF_NEVER);
+	out << msgs[p];
+	return out;
+}
+
+
+Identifier<pf_t> PREFETCHED("otawa::tricore16::PREFETECHED", PF_NONE);
 
 class PrefetchCategoryAnalysis: public BBProcessor {
 public:
@@ -139,10 +155,10 @@ private:
 	}
 };
 
-Feature<PrefetchCategoryAnalysis> PREFETCH_CATEGORY_FEATURE("otawa::tricore16P::PREFETCH_CATEGORY_FEATURE");
+Feature<PrefetchCategoryAnalysis> PREFETCH_CATEGORY_FEATURE("otawa::tricore16::PREFETCH_CATEGORY_FEATURE");
 
 
-p::declare PrefetchCategoryAnalysis::reg = p::init("otawa::tricore16P::PrefetchCategoryAnalysis", Version(1, 0, 0))
+p::declare PrefetchCategoryAnalysis::reg = p::init("otawa::tricore16::PrefetchCategoryAnalysis", Version(1, 0, 0))
 	.make<PrefetchCategoryAnalysis>()
 	.provide(PREFETCH_CATEGORY_FEATURE)
 	.require(otawa::ICACHE_CATEGORY2_FEATURE);

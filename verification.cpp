@@ -50,7 +50,7 @@ typedef struct tricore_memory_t
 
 
 using namespace otawa;
-namespace otawa { namespace tricore16P {
+namespace otawa { namespace tricore16 {
 
 Vector<Address> modifiedAddress;
 bool modifiedAddressb = false;
@@ -728,7 +728,7 @@ static void spyx(tricore_memory_t *mem, tricore_address_t addr, tricore_size_t s
 	}
 }
 
-p::declare StateVerifier::reg = p::init("otawa::tricore16P::StateVerifier", Version(1, 0, 0))
+p::declare StateVerifier::reg = p::init("otawa::tricore16::StateVerifier", Version(1, 0, 0))
 		.base(otawa::Processor::reg)
 //		.require(otawa::hard::CACHE_CONFIGURATION_FEATURE)
 //		.require(otawa::branch::CONSTRAINTS_FEATURE)

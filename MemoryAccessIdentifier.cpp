@@ -15,7 +15,7 @@
 #include <otawa/data/clp/features.h>
 #include <otawa/willie.h>
 
-namespace otawa { namespace tricore16P {
+namespace otawa { namespace tricore16 {
 
 
 // MemoryAccessIdentifier class
@@ -43,7 +43,7 @@ private:
 	int storeCT;
 };
 
-p::declare MemoryAccessIdentifier::reg = p::init("otawa::tricore16P::MemoryAccessIdentifier", Version(1, 0, 0))
+p::declare MemoryAccessIdentifier::reg = p::init("otawa::tricore16::MemoryAccessIdentifier", Version(1, 0, 0))
 	.base(BBProcessor::reg)
 	.maker<MemoryAccessIdentifier>()
 //	.provide(DATA_BLOCK_FEATURE)
@@ -64,7 +64,7 @@ p::declare MemoryAccessIdentifier::reg = p::init("otawa::tricore16P::MemoryAcces
  * @see clp
  * @ingroup dcache
  */
-p::feature MEMORY_ACCESS_IDENTIFY_FEATURE("otawa::tricore16P::MEMORY_ACCESS_IDENTIFY_FEATURE", new Maker<MemoryAccessIdentifier>());
+p::feature MEMORY_ACCESS_IDENTIFY_FEATURE("otawa::tricore16::MEMORY_ACCESS_IDENTIFY_FEATURE", new Maker<MemoryAccessIdentifier>());
 
 
 /**
@@ -121,7 +121,7 @@ void MemoryAccessIdentifier::processWorkSpace(WorkSpace *fw) {
 	elm::cout << "XML<reg-set name=\"CTX\"><value address=\"0x70019C00\"/></reg-set>" << endl;
 	elm::cout << "XML</flowfacts>" << endl;
 
-	elm::cout << "Finishing processing otawa::tricore16P::MemoryAccessIdentifier" << endl;
+	elm::cout << "Finishing processing otawa::tricore16::MemoryAccessIdentifier" << endl;
 }
 
 /**
@@ -160,5 +160,5 @@ void MemoryAccessIdentifier::processBB (WorkSpace *ws, CFG *cfg, otawa::Block *b
 }
 
 
-}} // otawa::tricore16P
+}} // otawa::tricore16
 

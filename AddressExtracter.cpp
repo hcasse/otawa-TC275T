@@ -18,7 +18,7 @@
 using namespace otawa::clp;
 using namespace elm::io;
 
-namespace otawa { namespace tricore16P {
+namespace otawa { namespace tricore16 {
 
 Identifier<bool> REWIND("REWIND", false);
 
@@ -44,7 +44,7 @@ private:
 	int storeCT;
 };
 
-p::declare AddressExtracter::reg = p::init("otawa::tricore16P::AddressExtracter", Version(1, 0, 0))
+p::declare AddressExtracter::reg = p::init("otawa::tricore16::AddressExtracter", Version(1, 0, 0))
 	.base(BBProcessor::reg)
 	.maker<AddressExtracter>()
 //	.provide(DATA_BLOCK_FEATURE)
@@ -65,7 +65,7 @@ p::declare AddressExtracter::reg = p::init("otawa::tricore16P::AddressExtracter"
  * @see clp
  * @ingroup dcache
  */
-p::feature ADDRESS_EXTRACTION_FEATURE("otawa::tricore16P::ADDRESS_EXTRACTION_FEATURE", new Maker<AddressExtracter>());
+p::feature ADDRESS_EXTRACTION_FEATURE("otawa::tricore16::ADDRESS_EXTRACTION_FEATURE", new Maker<AddressExtracter>());
 
 
 /**
@@ -96,7 +96,7 @@ void AddressExtracter::cleanup(WorkSpace *ws) {
 
 void AddressExtracter::processWorkSpace(WorkSpace *fw) {
 	BBProcessor::processWorkSpace(fw);
-	elm::cout << __SOURCE_INFO__ << "Finishing processing otawa::tricore16P::AddressExtracter" << endl;
+	elm::cout << __SOURCE_INFO__ << "Finishing processing otawa::tricore16::AddressExtracter" << endl;
 	elm::cout << __SOURCE_INFO__ << "total access: " << (loadC + storeC) << " L: " << loadC << "(" << (loadC*100/(loadC+storeC)) << "%), S: " << storeC << "(" << (storeC*100/(loadC+storeC)) << "%)" << endl;
 	elm::cout << __SOURCE_INFO__ << "total access to top: " << (loadCT + storeCT) << "(" << ((loadCT + storeCT)*100/(loadC+storeC)) << "%), L: " << loadCT << "(" << ((loadCT + storeCT)==0?0:(loadCT*100/(loadCT+storeCT))) << "%), S: " << storeCT << "(" << ((loadCT + storeCT)==0?0:(storeCT*100/(loadCT+storeCT))) << "%)" << endl;
 }
@@ -185,5 +185,5 @@ void AddressExtracter::processBB (WorkSpace *ws, CFG *cfg, otawa::Block *b) {
 }
 
 
-}} // otawa::tricore16P
+}} // otawa::tricore16
 

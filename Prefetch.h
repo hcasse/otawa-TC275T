@@ -2,7 +2,7 @@
 #define __TC275_PREFETCH_H__
 
 namespace otawa {
-namespace tricore16P {
+namespace tricore16 {
 
 
 typedef enum {

@@ -1,7 +1,7 @@
 #include <otawa/ilp/Constraint.h>
 
 namespace otawa {
-namespace tricore16P {
+namespace tricore16 {
 
 class PrefetchEvent: public otawa::etime::Event {
 public:
@@ -54,4 +54,4 @@ private:
 	LBlock *lb;
 };
 
-}} // end namespace otawa::tricore16P
+}} // end namespace otawa::tricore16

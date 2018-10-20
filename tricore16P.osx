@@ -84,14 +84,14 @@
 
 	<!-- cache definition -->
 	<xsl:if test="$core=0">
-		<xi:include href="tricore16P/cache16E.xml"/>
+		<xi:include href="tricore16/cache16E.xml"/>
 	</xsl:if>
 	<xsl:if test="$core=1">
-		<xi:include href="tricore16P/cache16P.xml"/>
+		<xi:include href="tricore16/cache16P.xml"/>
 	</xsl:if>
 
 	<!-- pipeline definition -->
-	<xi:include href="tricore16P/pipeline16P.xml"/>
+	<xi:include href="tricore16/pipeline16P.xml"/>
 
 	<!-- memory definition -->
 	<memory>
@@ -358,13 +358,13 @@
 		<step require="otawa::branch::CATEGORY_FEATURE"/>
 	</xsl:if>
 	<step require="otawa::ICACHE_CATEGORY2_FEATURE"/>
-	<step require="continental::tricore16P::PREFETCH_CATEGORY_FEATURE"/>
+	<step require="continental::tricore16::PREFETCH_CATEGORY_FEATURE"/>
 	<step require="otawa::ICACHE_ONLY_CONSTRAINT2_FEATURE"/>
-	<step processor="continental::tricore16P::BBTimer">
+	<step processor="continental::tricore16::BBTimer">
 		<xsl:if test="$gpath!=''">
 			<config name="otawa::GRAPHS_OUTPUT_DIRECTORY" value="{$gpath}"/>
 		</xsl:if>
-		<config name="continental::tricore16P::CORE" value="{$core}"/>
+		<config name="continental::tricore16::CORE" value="{$core}"/>
 	</step>
 	<!--step require="otawa::ipet::EDGE_TIME_FEATURE"/-->
 	<step require="otawa::ipet::WCET_FEATURE"/>

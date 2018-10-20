@@ -52,10 +52,10 @@ typedef struct tricore_memory_t
 
 
 using namespace otawa;
-namespace otawa { namespace tricore16P {
+namespace otawa { namespace tricore16 {
 
 
-Identifier<unsigned int> CLP_INITIATOR_STOP_POINT("otawa::tricore16P::CLP_INITIATOR_STOP_POINT", 0xFFFFFFFF);
+Identifier<unsigned int> CLP_INITIATOR_STOP_POINT("otawa::tricore16::CLP_INITIATOR_STOP_POINT", 0xFFFFFFFF);
 
 static avl::Set<unsigned int> accessAddrs;
 static Vector<unsigned int> hardwareWrites;
@@ -352,7 +352,7 @@ protected:
 		/* close loader file */
 	    tricore_loader_close(loader);
 
-	    elm::cout << "Finish processing at otawa::tricore16P::CLPInitiator" << endl;
+	    elm::cout << "Finish processing at otawa::tricore16::CLPInitiator" << endl;
 
 //		for(int i = 0; i < TRICORE_INSTRUCTIONS_NB; i++)
 //			elm::cout << COVERAGE[i] << endl;
@@ -385,7 +385,7 @@ static void spyx(tricore_memory_t *mem, tricore_address_t addr, tricore_size_t s
 	}
 }
 
-p::declare CLPInitiator::reg = p::init("otawa::tricore16P::CLPInitiator", Version(1, 0, 0))
+p::declare CLPInitiator::reg = p::init("otawa::tricore16::CLPInitiator", Version(1, 0, 0))
 		.base(otawa::Processor::reg)
 		.maker<CLPInitiator>()
 		.require(dfa::INITIAL_STATE_FEATURE)

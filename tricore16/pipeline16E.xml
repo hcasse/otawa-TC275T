@@ -32,13 +32,13 @@
 	-->
 	
 	<stages>
-		<stage id="F1">
-			<name>F1</name>
+		<stage id="FE">
+			<name>FE</name>
 			<width>1</width>
 			<type>FETCH</type>
 		</stage>
-		<stage id="EXE_D">
-			<name>EXE_D</name>
+		<stage id="DE">
+			<name>DE</name>
 			<width>1</width> <!-- p271 sec 5.4.3 The TC1.6E issues a single instruction per clock cycle, and as such no more than one instruction will be executed in one clock cycle. -->
 			<type>LAZY</type>
 		</stage>
