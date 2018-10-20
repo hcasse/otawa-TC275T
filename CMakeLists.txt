@@ -50,14 +50,14 @@ add_custom_command(
 )
 add_custom_command(
 	OUTPUT		"mreg.h"
-	DEPENDS 	"mreg.tpl" "prod16P.nmp" ${TRICORE_IRG}
+	DEPENDS 	"mreg.tpl" "TC16.nmp" ${TRICORE_IRG}
 	COMMAND 	${GLISS_ATTR}
 	ARGS 		${TRICORE_IRG} -o mreg.h -a mreg -f -t "mreg.tpl" -d "return 0;" -e ${CMAKE_SOURCE_DIR}/TC16.nmp
 	VERBATIM 
 )
 add_custom_command(
 	OUTPUT		"pipe.h"
-	DEPENDS 	"pipe.tpl" "prod16P.nmp" ${TRICORE_IRG}
+	DEPENDS 	"pipe.tpl" "TC16.nmp" ${TRICORE_IRG}
 	COMMAND 	${GLISS_ATTR}
 	ARGS 		${TRICORE_IRG} -o pipe.h -a pipe -f -t "pipe.tpl" -d "return 0;" -e ${CMAKE_SOURCE_DIR}/TC16.nmp
 	VERBATIM 
