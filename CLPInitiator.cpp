@@ -10,7 +10,6 @@
 #include <elm/avl/Map.h>
 #include <otawa/data/clp/features.h>
 #include <otawa/dfa/State.h>
-#include <otawa/willie.h>
 
 
 extern "C" {

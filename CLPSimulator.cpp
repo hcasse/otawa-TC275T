@@ -9,7 +9,6 @@
 #include <otawa/loader/gliss.h>
 #include <elm/avl/Map.h>
 #include <otawa/data/clp/features.h>
-#include <otawa/willie.h>
 
 
 extern "C" {

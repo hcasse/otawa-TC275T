@@ -8,7 +8,6 @@
 #include <otawa/loader/gliss.h>
 #include <elm/avl/Map.h>
 #include <otawa/data/clp/features.h>
-#include <otawa/willie.h>
 
 
 extern "C" {
@@ -59,10 +58,10 @@ bool modifiedAddressb = false;
 unsigned long ENDNUM = 0xFFFFFFFF;
 static void spyx(tricore_memory_t *mem, tricore_address_t addr, tricore_size_t size, tricore_access_t access, void *data);
 
-class StateVerifier: public otawa::Processor {
+class AbstractStateVerifier: public otawa::Processor {
 public:
 	static p::declare reg;
-	StateVerifier(void): otawa::Processor(reg) { }
+	AbstractStateVerifier(void): otawa::Processor(reg) { }
 
 	static int BIGNUM;
 	static int BIGNUMa;
@@ -670,17 +669,17 @@ protected:
 private:
 };
 
-int StateVerifier::BIGNUM = 200000000; // -1
-int StateVerifier::BIGNUMa = 0;
-int StateVerifier::currPC = 0;
-tricore_sim_t *StateVerifier::sim = 0;
+int AbstractStateVerifier::BIGNUM = 200000000; // -1
+int AbstractStateVerifier::BIGNUMa = 0;
+int AbstractStateVerifier::currPC = 0;
+tricore_sim_t *AbstractStateVerifier::sim = 0;
 
 static void spyx(tricore_memory_t *mem, tricore_address_t addr, tricore_size_t size, tricore_access_t access, void *data) {
 
-//	if(StateVerifier::BIGNUMa < StateVerifier::BIGNUM)
+//	if(AbstractStateVerifier::BIGNUMa < AbstractStateVerifier::BIGNUM)
 //		return;
 //
-//	if(StateVerifier::currPC == addr) // do not print the instruction loading
+//	if(AbstractStateVerifier::currPC == addr) // do not print the instruction loading
 //		return;
 
 	uint8_t tmp1 = 0;
@@ -690,7 +689,7 @@ static void spyx(tricore_memory_t *mem, tricore_address_t addr, tricore_size_t s
 	unsigned int result = 0;
 
 	for(int iii = 0; iii < 65536 /* HASHTABLE_SIZE */; iii++) {
-		page_entry_t* pagex = StateVerifier::sim->state->M->hashtable[iii];
+		page_entry_t* pagex = AbstractStateVerifier::sim->state->M->hashtable[iii];
 		int found = 0;
 		while(pagex) {
 			if(pagex->addr == (addr & 0xFFFFF000)) {
@@ -728,12 +727,12 @@ static void spyx(tricore_memory_t *mem, tricore_address_t addr, tricore_size_t s
 	}
 }
 
-p::declare StateVerifier::reg = p::init("otawa::tricore16::StateVerifier", Version(1, 0, 0))
+p::declare AbstractStateVerifier::reg = p::init("otawa::tricore16::AbstractStateVerifier", Version(1, 0, 0))
 		.base(otawa::Processor::reg)
 //		.require(otawa::hard::CACHE_CONFIGURATION_FEATURE)
 //		.require(otawa::branch::CONSTRAINTS_FEATURE)
 //		.require(otawa::gliss::INFO_FEATURE)
-		.maker<StateVerifier>();
+		.maker<AbstractStateVerifier>();
 
 }}
 

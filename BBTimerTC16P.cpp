@@ -17,8 +17,6 @@ using namespace otawa;
 
 namespace otawa { namespace tricore16 {
 
-extern Identifier<int> CORE;
-
 #define FIRST_EXE_STAGE 0
 #define SECOND_EXE_STAGE 1
 
@@ -72,11 +70,12 @@ typedef enum {
 
 
 
-class ExeGraph16E: public etime::EdgeTimeGraph {
+
+class ExeGraph: public etime::EdgeTimeGraph {
 public:
 	typedef genstruct::Vector<const hard::Register *> reg_set_t;
 
-	ExeGraph16E(
+	ExeGraph(
 		WorkSpace *ws,
 		ParExeProc *proc,
 		elm::Vector<Resource *> *hw_resources,
@@ -142,7 +141,7 @@ public:
 		worst_mem_delay = mem->worstAccess();
 	}
 
-	virtual ~ExeGraph16E(void) { }
+	virtual ~ExeGraph(void) { }
 
 	/**
 	 * Test if the graph is done for core E processor.
@@ -186,29 +185,60 @@ public:
 //		findExeAt(cur_inst, stage)->setLatency(delay);
 //	}
 
-
-	void addEdgesForProgramOrder(List<ParExeStage *> *list_of_stages) {
+	void kkk(List<ParExeStage *> *list_of_stages){
 		static string program_order("program order");
 
-		int numOfStages = 0;
-		for(InstIterator inst(this); inst; inst++) {
-			for(ParExeInst::NodeIterator node(inst); node; node++) {
-				numOfStages++;
+		// select list of in-order stages
+		List<ParExeStage *> *list;
+		if(list_of_stages != NULL)
+			list = list_of_stages;
+		else
+			list = _microprocessor->listOfInorderStages();
+
+		// create the edges
+		for(StageIterator stage(list) ; stage ; stage++) {
+			int count = 1;
+			ParExeNode *previous = NULL;
+			int prev_id = 0;
+			for(ParExeStage::NodeIterator node(stage); node; node++){
+				if(previous){
+					if(stage->width() == 1)
+						new ParExeEdge(previous, node, ParExeEdge::SOLID, 0, program_order);
+				}
+				previous = node;
 			}
-			break;
+		}
+	}
+
+	void addEdgesForProgramOrder(List<ParExeStage *> *list_of_stages) {
+		// make sure two instructions that uses the same kind of pipeline goes one after another
+		//ParExeGraph::addEdgesForProgramOrder(list_of_stages);
+		kkk(list_of_stages);
+
+		// 3 stages for each functional units
+		// for the 2nd and 3rd stage, an instruction can only run after the previous instruction of the same kind of pipeline finishes
+		// prepare map
+		elm::HashMap<ParExeStage *, ParExeNode *> nodes;
+		ParExePipeline *pipes[] = { ip, ls, lp, fp };
+		for(int i = 0; i < 4; i++) {
+			// there are two stages for the execution
+			ParExePipeline::StageIterator stage(pipes[i]);
+			nodes.put(*stage, 0); // initial value for the map is nullptr as there is no previous parexenode
+			stage++;
+			nodes.put(*stage, 0);
 		}
 
-		ParExeNode *previous[numOfStages] = { nullptr };
+		// add missing edges
 		for(InstIterator inst(this); inst; inst++) {
-			int index = 0;
 			for(ParExeInst::NodeIterator node(inst); node; node++) {
-				if(previous[index]) {
-					new ParExeEdge(previous[index], node, ParExeEdge::SOLID, 0, program_order);
+				Option<ParExeNode *> prev = nodes.get(node->stage());
+				if(prev) { // if there is a prev node
+					if(*prev)
+						new ParExeEdge(*prev, *node, ParExeEdge::SOLID, 0, "prog-pipe");
+					nodes.put(node->stage(), *node); // update the map
 				}
-				previous[index] = node;
-				index++;
 			}
-		}
+		} // for each instruction
 	}
 
 	virtual void addEdgesForFetch(void) {
@@ -368,8 +398,15 @@ public:
 	 */
 	void dependenciesForALU(ParExeInst *inst) {
 		int time = tricore_prod(info, inst->inst(), _coreE);
+#ifdef USE_ORIGINAL
+		ParExeNode *cons_node = findExeAt(inst, max(0, 2 - time)); // why consume at max, which means if it produce the result at the first cycle, eg. time = 0, the max (0,2) will be 2, the consume stage will be at 2...
+		ParExeNode *prod_node = findExeAt(inst, 2); // last FU is the production node
+#else
 		ParExeNode *cons_node = findExeAt(inst, FIRST_EXE_STAGE); // will consume at the first node
 		ParExeNode *prod_node = findExeAt(inst, min(SECOND_EXE_STAGE, time));
+#endif
+		elm::cout << "For " << inst->inst() << ", cons = " << cons_node->name() << ", prod_node = " << prod_node->name() << endl;
+
 		reg_set_t null;
 		consume(inst->inst(), cons_node, null);
 		produce(inst->inst(), prod_node, null);
@@ -397,7 +434,10 @@ public:
 		produce(inst->inst(), addr_node, regs);
 
 		// time
-		mem_node->setLatency(tricore_prod(info, inst->inst(), this)+ worst_mem_delay);
+		mem_node->setLatency(
+			tricore_prod(info, inst->inst(), this)
+			+ worst_mem_delay
+			/*- 1*/);
 	}
 
 	/**
@@ -405,8 +445,8 @@ public:
 	 * @param inst	Concerned instruction.
 	 */
 	void dependenciesForStore(ParExeInst *inst) {
-		ParExeNode *addr_node = findExeAt(inst, FIRST_EXE_STAGE);
-		ParExeNode *mem_node = findExeAt(inst, SECOND_EXE_STAGE);
+		ParExeNode *addr_node = findExeAt(inst, 1);
+		ParExeNode *mem_node = findExeAt(inst, 2);
 
 		// consume registers
 		reg_set_t regs;
@@ -420,7 +460,10 @@ public:
 		produce(inst->inst(), addr_node, null);
 
 		// time
-		mem_node->setLatency(tricore_prod(info, inst->inst(), this) + 1 + worst_mem_delay);
+		mem_node->setLatency(
+			tricore_prod(info, inst->inst(), this) + 1
+			+ worst_mem_delay
+			- 1);
 	}
 
 	/**
@@ -428,8 +471,8 @@ public:
 	 * @param inst	Concerned instruction.
 	 */
 	void dependenciesForLoadStore(ParExeInst *inst) {
-		ParExeNode *addr_node = findExeAt(inst, FIRST_EXE_STAGE);
-		ParExeNode *mem_node = findExeAt(inst, SECOND_EXE_STAGE);
+		ParExeNode *addr_node = findExeAt(inst, 1);
+		ParExeNode *mem_node = findExeAt(inst, 2);
 		reg_set_t regs;
 		regOf(tricore_mreg(info, inst->inst()), regs);
 		consume(inst->inst(), addr_node, regs);
@@ -494,18 +537,18 @@ private:
 /**
  * Determine the type of core.
  */
-//Identifier<int> CORE("otawa::tricore16::CORE", 1);
+Identifier<int> CORE("otawa::tricore16::CORE", 1);
 
-class BBTimer16E: public etime::EdgeTimeBuilder {
+class BBTimerTC16P: public etime::EdgeTimeBuilder {
 public:
 	static p::declare reg;
-	BBTimer16E(void): etime::EdgeTimeBuilder(reg) { }
+	BBTimerTC16P(void): etime::EdgeTimeBuilder(reg) { }
 
 protected:
 	virtual etime::EdgeTimeGraph *make(ParExeSequence *seq) {
 		PropList props;
 
-		ExeGraph16E *graph = new ExeGraph16E(this->workspace(), _microprocessor, ressources(), seq, props, core == 0);
+		ExeGraph *graph = new ExeGraph(this->workspace(), _microprocessor, ressources(), seq, props, core == 0);
 		graph->setExplicit(true);
 		graph->build();
 
@@ -531,14 +574,35 @@ private:
 };
 
 
-p::declare BBTimer16E::reg = p::init("otawa::tricore16::BBTimer16E", Version(1, 0, 0))
+p::declare BBTimerTC16P::reg = p::init("otawa::tricore16::BBTimerTC16P", Version(1, 0, 0))
 		.base(etime::EdgeTimeBuilder::reg)
 		.require(otawa::hard::CACHE_CONFIGURATION_FEATURE)
 		.require(otawa::branch::CONSTRAINTS_FEATURE)
 		.require(otawa::gliss::INFO_FEATURE)
 		//.require(otawa::tricore16::PREFETCH_CATEGORY_FEATURE)
-		.maker<BBTimer16E>();
+		.maker<BBTimerTC16P>();
 
+class Plugin: public ProcessorPlugin {
+public:
+	//typedef elm::genstruct::Table<AbstractRegistration * > procs_t;
+
+	//Plugin(void): ProcessorPlugin("otawa::tricore16", Version(1, 0, 0), OTAWA_PROC_VERSION) { }
+	//virtual procs_t& processors (void) const { return procs_t::EMPTY; };
+
+	typedef elm::genstruct::Table<AbstractRegistration *> procs_t;
+
+	Plugin(void): ProcessorPlugin(make("otawa::tricore16", OTAWA_PROC_VERSION)
+		.version(1, 0, 0)
+		.description("timing analyses for TriCore")
+		.license(Manager::copyright)) {
+	}
+
+};
 
 } }	// otawa::tricore16
+
+otawa::tricore16::Plugin otawa_tricore16;
+ELM_PLUGIN(otawa_tricore16, OTAWA_PROC_HOOK);
+
+
 
