@@ -37,6 +37,8 @@ public:
 
 protected:
 
+	void destroy(WorkSpace *ws) override { }
+
 	virtual void processBB(WorkSpace *ws, CFG *cfg, Block *b) {
 
 		if(!b->isBasic())
@@ -117,7 +119,7 @@ private:
 
 		// find last LBlock of previous BBlock
 		else {
-			for(BasicBlock::EdgeIter edge = bb->ins(); edge; edge++) {
+			for(BasicBlock::EdgeIter edge = bb->ins(); edge(); edge++) {
 
 				if(!edge->source()->isBasic())
 					continue;

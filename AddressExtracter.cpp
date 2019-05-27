@@ -13,7 +13,6 @@
 
 #include <otawa/proc/BBProcessor.h>
 #include <otawa/data/clp/features.h>
-#include <otawa/willie.h>
 
 using namespace otawa::clp;
 using namespace elm::io;

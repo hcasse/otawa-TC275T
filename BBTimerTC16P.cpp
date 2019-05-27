@@ -113,7 +113,7 @@ public:
 			regs[i] = 0;
 
 		// look for FU
-		for(ParExePipeline::StageIterator stage(_microprocessor->pipeline()); stage; stage++)
+		for(ParExePipeline::StageIterator stage(_microprocessor->pipeline()); stage(); stage++)
 			if(stage->category() == ParExeStage::EXECUTE)
 				for(int i = 0; i < stage->numFus(); i++) {
 					ParExePipeline *pfu = stage->fu(i);
@@ -136,7 +136,7 @@ public:
 		ASSERT(fp);
 
 		// compute worst_mem_delay
-		const hard::Memory *mem = hard::MEMORY(ws);
+		const hard::Memory *mem = hard::MEMORY_FEATURE.get(ws);
 		ASSERT(mem);
 		worst_mem_delay = mem->worstAccess();
 	}
@@ -196,16 +196,16 @@ public:
 			list = _microprocessor->listOfInorderStages();
 
 		// create the edges
-		for(StageIterator stage(list) ; stage ; stage++) {
+		for(StageIterator stage(list) ; stage() ; stage++) {
 			int count = 1;
 			ParExeNode *previous = NULL;
 			int prev_id = 0;
-			for(ParExeStage::NodeIterator node(stage); node; node++){
+			for(ParExeStage::NodeIterator node(*stage); node(); node++){
 				if(previous){
 					if(stage->width() == 1)
-						new ParExeEdge(previous, node, ParExeEdge::SOLID, 0, program_order);
+						new ParExeEdge(previous, *node, ParExeEdge::SOLID, 0, program_order);
 				}
-				previous = node;
+				previous = *node;
 			}
 		}
 	}
@@ -229,8 +229,8 @@ public:
 		}
 
 		// add missing edges
-		for(InstIterator inst(this); inst; inst++) {
-			for(ParExeInst::NodeIterator node(inst); node; node++) {
+		for(InstIterator inst(this); inst(); inst++) {
+			for(ParExeInst::NodeIterator node(*inst); node(); node++) {
 				Option<ParExeNode *> prev = nodes.get(node->stage());
 				if(prev) { // if there is a prev node
 					if(*prev)
@@ -259,7 +259,7 @@ public:
 		// * correctly predicted, taken: 2
 		// * incorrectly predicted: 3
 		ParExeInst *prev = 0;
-		for(InstIterator inst(this); inst; inst++) {
+		for(InstIterator inst(this); inst(); inst++) {
 			if(prev && prev->inst()->isControl()) {
 				ot::time delay;
 
@@ -300,28 +300,28 @@ public:
 	}
 
 	virtual void findDataDependencies(void) {
-		for(InstIterator inst(this); inst; inst++) {
+		for(InstIterator inst(this); inst(); inst++) {
 			//cerr << "DEBUG: " << inst->inst() << io::endl;
 			if(inst->inst()->isMem()) {
 				if(inst->inst()->isLoad()) {
 					if(inst->inst()->isStore())
-						dependenciesForLoadStore(inst);
+						dependenciesForLoadStore(*inst);
 					else
-						dependenciesForLoad(inst);
+						dependenciesForLoad(*inst);
 				}
 				else
-					dependenciesForStore(inst);
+					dependenciesForStore(*inst);
 			}
 			else if(inst->inst()->getKind().meets(Inst::IS_FLOAT))
-				dependenciesForFloat(inst);
+				dependenciesForFloat(*inst);
 			else if(inst->inst()->isControl()) {
 				if(tricore_prod(info, inst->inst(), _coreE) < 0)
-					dependenciesForLoop(inst);
+					dependenciesForLoop(*inst);
 				else
-					dependenciesForBranch(inst);
+					dependenciesForBranch(*inst);
 			}
 			else
-				dependenciesForALU(inst);
+				dependenciesForALU(*inst);
 		}
 	}
 
@@ -519,13 +519,13 @@ private:
 	 * @param num	Number of the execution stage.
 	 */
 	ParExeNode *findExeAt(ParExeInst *inst, int num) {
-		for(ParExeInst::NodeIterator node(inst); node; node++) {
+		for(ParExeInst::NodeIterator node(inst); node(); node++) {
 			if(node->stage()->isFuStage()) {
 				while(num) {
 					node++;
 					num--;
 				}
-				return node;
+				return *node;
 			}
 		}
 		ASSERT(false);

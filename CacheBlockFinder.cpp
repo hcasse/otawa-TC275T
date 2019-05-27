@@ -97,7 +97,7 @@ protected:
 
 	virtual void processWorkSpace(WorkSpace *fw) {
 
-		const hard::CacheConfiguration *conf = hard::CACHE_CONFIGURATION(fw);
+		const hard::CacheConfiguration *conf = hard::CACHE_CONFIGURATION_FEATURE.get(fw);
 		if(conf)
 		cache = conf->instCache();
 		if(!cache)
@@ -172,7 +172,7 @@ protected:
 			for(int i = 0; i < cache->rowCount(); i++) {
 				elm::cout << "For set " << i << ": " << endl;
 				Vector<Pair<Address, String> >* v = allCBs[i];
-				for(Vector<Pair<Address, String> >::Iter vi(*v); vi; vi++)
+				for(Vector<Pair<Address, String> >::Iter vi(*v); vi(); vi++)
 					elm::cout << "\t" << (*vi).fst << "(" << (*vi).snd << ")" << endl;
 				if(v->count() == 0)
 					elm::cout << "\tempty" << endl;

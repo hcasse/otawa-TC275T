@@ -120,7 +120,7 @@ include_directories("${CMAKE_SOURCE_DIR}" "../tricore/include")
 add_library(${SCRIPT} SHARED ${SOURCES})
 set_property(TARGET ${SCRIPT} PROPERTY PREFIX "")
 set_property(TARGET ${SCRIPT} PROPERTY COMPILE_FLAGS "${OTAWA_CFLAGS}")
-target_link_libraries(${SCRIPT} "${OTAWA_LDFLAGS}" "${OTAWA_PREFIX}/lib/otawa/proc/otawa/etime${CMAKE_SHARED_LIBRARY_SUFFIX}"  "${TARGET_LIB}")
+target_link_libraries(${SCRIPT} "${OTAWA_LDFLAGS}" "${OTAWA_PREFIX}/lib/otawa/otawa/etime${CMAKE_SHARED_LIBRARY_SUFFIX}"  "${TARGET_LIB}")
 
 # installation
 if(NOT PREFIX)

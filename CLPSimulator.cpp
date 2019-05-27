@@ -84,7 +84,7 @@ protected:
 	void extractState(tricore_sim_t *sim, clp::State& clpState) {
 		if(debug) {
 			elm::cout << "Access addrs: ";
-			for(avl::Set<unsigned int>::Iterator a(accessAddrs); a; a++)
+			for(avl::Set<unsigned int>::Iterator a(accessAddrs); a(); a++)
 				elm::cout << hex(*a) << " ";
 			elm::cout << endl;
 		}
@@ -135,16 +135,16 @@ protected:
 		Vector<Block*> callStack;
 
 		// Visit CFG
-		for(CFGCollection::Iter cfg(cfgs); cfg; cfg++) {
+		for(CFGCollection::Iter cfg(cfgs); cfg(); cfg++) {
 			if (first) {
 				first = false;
 				addressToTrigger = cfg->address();
-				working_cfg = cfg;
+				working_cfg = *cfg;
 				working_bb = cfg->entry()->outs()->target()->toBasic();
 				working_inst = working_bb->first();
 			}
 //			elm::cout << "\tprocess CFG " << cfg->label() << io::endl;
-			for(CFG::BlockIter bb = cfg->blocks(); bb; bb++) {
+			for(CFG::BlockIter bb = cfg->blocks(); bb(); bb++) {
 				if(bb->isBasic())
 					totaltotalInst = totaltotalInst + bb->toBasic()->count();
 //				elm::cout << "\t\tprocess " << *bb << io::endl;
@@ -415,7 +415,7 @@ protected:
             	if(Address(inst->addr) == working_bb->last()->address())  {
     				// need to decide the following block
     				Address nextAddress = Address(sim->state->PC);
-    				for (Block::EdgeIter outEdge = working_bb->outs(); outEdge; outEdge++) {
+    				for (Block::EdgeIter outEdge = working_bb->outs(); outEdge(); outEdge++) {
     					if(outEdge->target()->isSynth()) {
     						if(debug_cfg)
     							elm::cout << __RED__ << "    Making a call" << __RESET__ << endl;
@@ -498,7 +498,7 @@ protected:
 
 				int coveredBB = 0;
 				int totalBB = 0;
-				for(CFGCollection::BlockIter cfgcbi(cfgs); cfgcbi; cfgcbi++) {
+				for(CFGCollection::BlockIter cfgcbi(cfgs); cfgcbi(); cfgcbi++) {
 					if(cfgcbi->isBasic()) {
 						totalBB++;
 						if(COVERED(*cfgcbi))

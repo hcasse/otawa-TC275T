@@ -92,18 +92,18 @@ protected:
 		Inst* working_inst = 0;
 
 		// Visit CFG
-		for(CFGCollection::Iter cfg(cfgs); cfg; cfg++) {
+		for(CFGCollection::Iter cfg(cfgs); cfg(); cfg++) {
 			if (first) {
 				first = false;
 				addressToTrigger = cfg->address();
-				working_cfg = cfg;
+				working_cfg = *cfg;
 				working_bb = cfg->entry()->outs()->target()->toBasic();
 				working_inst = working_bb->first();
 			}
 			elm::cout << "\tprocess CFG " << cfg->label() << io::endl;
-			for(CFG::BlockIter bb = cfg->blocks(); bb; bb++) {
+			for(CFG::BlockIter bb = cfg->blocks(); bb(); bb++) {
 				elm::cout << "\t\tprocess " << *bb << io::endl;
-				clp::State clpState = clp::STATE_IN(bb);
+				clp::State clpState = clp::STATE_IN(*bb);
 
 				elm::cout << "\t\t\t";
 				clpState.print(elm::cout, workspace()->platform());
@@ -336,7 +336,7 @@ protected:
 				elm::cout << "need to check " <<  modifiedAddress.count() << " nodes" << endl;
 
         		// check actual state vs abstract state at the end of each instruction
-				for(clp::State::Iter clpsi(currentCLPState); clpsi; clpsi++) {
+				for(clp::State::Iter clpsi(currentCLPState); clpsi(); clpsi++) {
 					clp::Value actualValue;
 					if(clpsi.id().kind() == clp::REG) {
 						int regID = clpsi.id().lower();
@@ -437,7 +437,7 @@ protected:
             	if(Address(inst->addr) == working_bb->last()->address())  { // reacheds the end of BB
     				// need to decide the following block
     				Address nextAddress = Address(sim->state->PC);
-    				for (Block::EdgeIter outEdge = working_bb->outs(); outEdge; outEdge++) {
+    				for (Block::EdgeIter outEdge = working_bb->outs(); outEdge(); outEdge++) {
     					if(outEdge->target()->isSynth()) {
     						working_cfg = outEdge->target()->toSynth()->callee();
     						working_bb = working_cfg->entry()->outs()->target()->toBasic();
@@ -446,8 +446,8 @@ protected:
     					}
     					else if (outEdge->target()->isExit()) {
     						elm::cout << "Leaving a call" << endl;
-    						for(CFG::CallerIter ci = outEdge->target()->cfg()->callers(); ci; ci++) {
-    							for (Block::EdgeIter ciOut = ci->outs(); ciOut; ciOut++) {
+    						for(CFG::CallerIter ci(outEdge->target()->cfg()->callers()); ci(); ci++) {
+    							for (Block::EdgeIter ciOut = ci->outs(); ciOut(); ciOut++) {
     								if(ciOut->target()->isSynth()) {
     									elm::cout << "Sequential call!" << endl;
     								}

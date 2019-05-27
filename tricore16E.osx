@@ -132,7 +132,7 @@
 					<latency>1</latency>
 				</xsl:if>
 				<xsl:if test="$core!=1">
-					<latency>3</latency>				<!-- TODO -->
+					<latency>5</latency>				<!-- TODO -->
 				</xsl:if>
 			</bank>
 			<bank>
@@ -159,7 +159,7 @@
 				<writable>true</writable>
 				<cachable>false</cachable>
 				<xsl:if test="$core=0">
-					<latency>1</latency>
+					<latency>0</latency>
 				</xsl:if>
 				<xsl:if test="$core!=0">
 					<latency>3</latency>				<!-- TODO -->
@@ -349,11 +349,23 @@
 	<config name="otawa::GRAPHS_OUTPUT_DIRECTORY" value="exeg"/>
 	<config name="otawa::ipet::EXPLICIT" value="true"/>
 	<config name="otawa::tricore16::CORE" value="0"/>
+	<step require="otawa::VIRTUALIZED_CFG_FEATURE"/>
+	<step require="otawa::ICACHE_CATEGORY2_FEATURE"/> <!--  collect LBlocks, identifying when a cache load is necessary -->
+	<step require="otawa::ICACHE_ONLY_CONSTRAINT2_FEATURE"/>\
+	<step processor="otawa::tricore16::BBTimerTC16E">
+	</step>
+	<step require="otawa::ipet::WCET_FEATURE"/>	
+</script>
+
+<script3>
+	<config name="otawa::GRAPHS_OUTPUT_DIRECTORY" value="exeg"/>
+	<config name="otawa::ipet::EXPLICIT" value="true"/>
+	<config name="otawa::tricore16::CORE" value="0"/>
 	<step processor="otawa::tricore16::CacheBlockFinder"/>
 	<!-- 
 	<step processor="otawa::util::LBlockBuilder"/>
 	 -->
-</script>
+</script3>
 
 
 <script2>

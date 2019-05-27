@@ -12,8 +12,7 @@
 #include <otawa/proc/Feature.h>
 #include <otawa/prop/ContextualProperty.h>
 #include <otawa/data/clp/features.h>
-#include <otawa/util/FlowFactLoader.h> // EXIST_PROVIDED_STATE
-#include <otawa/willie.h>
+#include <otawa/flowfact/features.h> // EXIST_PROVIDED_STATE
 
 #include "TC275T.h"
 
@@ -53,9 +52,6 @@ ContextValueInfo::ContextValueInfo(p::declare& r)
 /**
  */
 static void buildContextualPaths(CFG* cfg, ContextualPath& path) {
-WILLIE_BEGIN_CONTEXTUAL_PATH3(
-	elm::cout << __SOURCE_INFO__ << "entering " << cfg << " with context " << path << endl;
-)WILLIE_END()
 	Vector<ContextualPath>* vcp = CONTEXTUAL_PATHS(cfg);
 	if(vcp == nullptr) {
 		vcp = new Vector<ContextualPath>();
@@ -65,7 +61,7 @@ WILLIE_BEGIN_CONTEXTUAL_PATH3(
 	}
 	vcp->addLast(path);
 
-	for(CFG::BlockIter cfgbi = cfg->blocks();cfgbi;cfgbi++) {
+	for(CFG::BlockIter cfgbi = cfg->blocks();cfgbi();cfgbi++) {
 		if(cfgbi->isSynth()) {
 			SynthBlock *sb = cfgbi->toSynth();
 			path.push(ContextualStep::CALL, sb->callInst()->address());
@@ -93,7 +89,7 @@ static void buildContextualPaths2(CFG* cfg, ContextualPath& path) {
 	}
 	vcp->addLast(path);
 
-	for(CFG::BlockIter cfgbi = cfg->blocks();cfgbi;cfgbi++) {
+	for(CFG::BlockIter cfgbi = cfg->blocks();cfgbi();cfgbi++) {
 		if(cfgbi->isSynth()) {
 			SynthBlock *sb = cfgbi->toSynth();
 
@@ -123,7 +119,7 @@ void ContextValueInfo::setup(WorkSpace *ws) {
 
 	int iii = 0;
 	int bbx = 0;
-	for(CFGCollection::BlockIter bbb(cfgc); bbb; bbb++)
+	for(CFGCollection::BlockIter bbb(cfgc); bbb(); bbb++)
 		if(bbb->isBasic()) {
 		iii = iii + bbb->toBasic()->count();
 		bbx++;
@@ -131,7 +127,7 @@ void ContextValueInfo::setup(WorkSpace *ws) {
 
 	elm::cout << iii << " instructions on " << bbx << " BBs" << endl;
 
-	CFG* cfg = *cfgc[0];
+	CFG* cfg = (*cfgc)[0];
 
 	ContextualPath path2;
 	path2.push(ContextualStep::FUNCTION, cfg->address());
@@ -159,29 +155,16 @@ void ContextValueInfo::processBB(WorkSpace *ws, CFG *cfg, Block *b) {
 		map = new Vector<clp::FlowFactStateInfo>();
 		clp::FLOW_FACT_STATE_INFO(bb) = map;
 	}
-WILLIE_BEGIN_CONTEXTUAL_PATH1(
-	elm::cout << __SOURCE_INFO__ << "process CFG " << bb->cfg()->index() << " BB " << bb->index() << endl;
-)WILLIE_END()
-	for(BasicBlock::InstIter inst(bb); inst; inst++) {
-		if(!EXIST_PROVIDED_STATE(inst))
+	for(BasicBlock::InstIter inst(bb); inst(); inst++) {
+		if(!EXIST_PROVIDED_STATE(*inst))
 			continue;
 
-WILLIE_BEGIN_CONTEXTUAL_PATH1(
-		elm::cout << __SOURCE_INFO__ << "    processing inst @ " << inst->address() << endl;
-)WILLIE_END()
 		Vector<ContextualPath> *vcp = CONTEXTUAL_PATHS(cfg);
-		for(Vector<ContextualPath>::Iter vcpi(*vcp);vcpi;vcpi++) {
+		for(Vector<ContextualPath>::Iter vcpi(*vcp);vcpi();vcpi++) {
 			ContextualPath pathx = *vcpi;
-			dfa::State *state = pathx(PROVIDED_STATE, inst);
+			dfa::State *state = pathx(PROVIDED_STATE, *inst);
 			if(state) {
 				map->add(clp::FlowFactStateInfo(*inst, pathx, state));
-WILLIE_BEGIN_CONTEXTUAL_PATH1(
-				elm::cout << __SOURCE_INFO__ << "    with context " << *vcpi << endl;
-				for(dfa::State::RegIter r(state); r; r++)
-					elm::cout << __SOURCE_INFO__ << "        " << (*r).fst->name() << " = " <<  (*r).snd.base() << "," << (*r).snd.delta() << "," << (*r).snd.count() << endl;
-				for(dfa::State::MemIter m(state); m; m++)
-					elm::cout << __SOURCE_INFO__ << "        MEM[" << (*m).address() << "] = " <<  (*m).value().base() << "," << (*m).value().delta() << "," << (*m).value().count() << endl; // "prob.initialize((*m).address(), (*m).value());
-)WILLIE_END()
 			}
 		}
 	} // end of each instruction

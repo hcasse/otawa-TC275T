@@ -13,7 +13,6 @@
 
 #include <otawa/proc/BBProcessor.h>
 #include <otawa/data/clp/features.h>
-#include <otawa/willie.h>
 
 namespace otawa { namespace tricore16 {
 
@@ -133,7 +132,7 @@ void MemoryAccessIdentifier::processBB (WorkSpace *ws, CFG *cfg, otawa::Block *b
 
 	elm::cout << __GREEN__ << "Processing CFG " << bb->cfg()->index() << " BB " << bb->index() << __RESET__ << endl;
 
-	for(BasicBlock::InstIter bbii = bb->insts(); bbii; bbii++) {
+	for(BasicBlock::InstIter bbii = bb->insts(); bbii(); bbii++) {
 		bool mem = false;
 
 		if(bbii->kind() & Inst::IS_CONTROL) {
