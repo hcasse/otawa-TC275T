@@ -13,6 +13,7 @@
 
 #include <otawa/proc/BBProcessor.h>
 #include <otawa/data/clp/features.h>
+#include "LogFormat.h"
 
 namespace otawa { namespace tricore16 {
 

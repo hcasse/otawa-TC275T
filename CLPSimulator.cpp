@@ -9,7 +9,7 @@
 #include <otawa/loader/gliss.h>
 #include <elm/avl/Map.h>
 #include <otawa/data/clp/features.h>
-
+#include "LogFormat.h"
 
 extern "C" {
 #include <tricore/api.h>
