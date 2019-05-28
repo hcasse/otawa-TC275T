@@ -42,7 +42,7 @@ extern Identifier<int> CORE;
  *		input registers read at MAC
  *		output registers written at ALU
  *	* for other integer ALU operation (l latency)
- *		input registers read at ALU - max(l - 1, 2)
+ *		input registers read at ALU - max(l - 2, 2)
  *		output registers written at ALU
  *		if latency > 3 then latency of ALU is l - 2
  *	* for loop instruction
@@ -82,7 +82,7 @@ public:
 		elm::Vector<Resource *> *hw_resources,
 		ParExeSequence *seq,
 		const PropList &props = PropList::EMPTY,
-		bool coreE = false)
+		bool coreE = true)
 	: etime::EdgeTimeGraph(ws, proc, hw_resources, seq, props), D(0), A(0), cur_inst(0), PSW(0), _coreE(coreE), ip(0), ls(0), lp(0), fp(0)
 	{
 		info = gliss::INFO(_ws->process());
@@ -177,6 +177,12 @@ public:
 		case 3:		set.add(A->get(num)); set.add(A->get((num + 1) & 0xf)); break;
 		default:	ASSERT(false); break;
 		}
+	}
+
+
+	virtual void createNodes(void) {
+		_resources.setLength(1); // only keep the first resource, the "start" resource
+		ParExeGraph::createNodes();
 	}
 
 	/**
@@ -303,14 +309,14 @@ public:
 	 * @param node		Consuming node.
 	 * @param excluded	Register to exclude (once).
 	 */
-	void consume(Inst *inst, ParExeNode *node, reg_set_t& excluded) {
+	void consume_edge(Inst *inst, ParExeNode *node, reg_set_t& excluded) {
 		const elm::genstruct::Table<hard::Register *>& reads = inst->readRegs();
 		for(int i = 0; i < reads.count(); i++) {
 			if(excluded.contains(reads[i])) {
 				excluded.remove(reads[i]);
 				continue;
 			}
-			consume(reads[i], node);
+			consume_edge(reads[i], node);
 		}
 	}
 
@@ -319,13 +325,22 @@ public:
 	 * @param reg	Consumed register.
 	 * @param node	Consumer.
 	 */
-	void consume(const hard::Register *reg, ParExeNode *node) {
+	void consume_edge(const hard::Register *reg, ParExeNode *node) {
 		//cerr << "DEBUG:\tconsume " << reg->name() << io::endl;
 		ParExeNode *producer = regs[reg->platformNumber()];
 		elm::cout << "read reg " << reg->name() << " with producer = " << (void*)producer << endl;
 		if(producer != NULL) {
 			node->addProducer(producer);
-			new ParExeEdge(producer, node, ParExeEdge::SOLID, 0, reg->name());
+
+			bool edgeExisted = false;
+			// only creates edge when necessary
+			for(ParExeGraph::Successor succ(producer); succ(); succ++)
+				if(*succ == node && succ.edge()->latency() == 0) {
+					edgeExisted = true;
+				}
+
+			if(!edgeExisted)
+				new ParExeEdge(producer, node, ParExeEdge::SOLID, 0, reg->name());
 		}
 	}
 
@@ -367,16 +382,24 @@ public:
 	/**
 	 * Generate dependencies for ALU instructions.
 	 * @param inst	Concerned instruction.
+	 * The ALU instruction generally have the results ready at the EX1
 	 */
 	void dependenciesForALU(ParExeInst *inst) {
 		int time = tricore_prod(info, inst->inst(), _coreE);
 		ParExeNode *cons_node = findExeAt(inst, FIRST_EXE_STAGE); // will consume at the first node
-		ParExeNode *prod_node = findExeAt(inst, min(SECOND_EXE_STAGE, time));
+
+		//ParExeNode *prod_node = findExeAt(inst, min(SECOND_EXE_STAGE, time));
+		ParExeNode *prod_node = NULL;
+		if(time < 1)
+			prod_node = findExeAt(inst, FIRST_EXE_STAGE);
+		else
+			prod_node = findExeAt(inst, SECOND_EXE_STAGE);
+
 		reg_set_t null;
-		consume(inst->inst(), cons_node, null);
+		consume_edge(inst->inst(), cons_node, null);
 		produce(inst->inst(), prod_node, null);
-		if(time > 2)
-			prod_node->setLatency(time/* - 1*/);
+		if(time > 1)
+			prod_node->setLatency(time - 1); // EX1 already takes 1 cycle, so the rest will be applied on EX2
 	}
 
 	/**
@@ -389,18 +412,19 @@ public:
 
 		// consume registers
 		reg_set_t null;
-		consume(inst->inst(), addr_node, null);
+		consume_edge(inst->inst(), addr_node, null);
 
 		// produce registers
 		reg_set_t regs;
 		regOf(tricore_mreg(info, inst->inst()), regs);
 		for(int i = 0; i < regs.length(); i++)
 			produce(regs[i], mem_node);
-		produce(inst->inst(), addr_node, regs);
+		produce(inst->inst(), mem_node, regs);
 
 		// time
+		// FIXME
 		worst_load_delay = 4;
-		mem_node->setLatency(tricore_prod(info, inst->inst(), this)+ worst_load_delay);
+		mem_node->setLatency(tricore_prod(info, inst->inst(), true)+ worst_load_delay);
 	}
 
 	/**
@@ -415,17 +439,18 @@ public:
 		reg_set_t regs;
 		regOf(tricore_mreg(info, inst->inst()), regs);
 		for(int i = 0; i < regs.length(); i++)
-			consume(regs[i], mem_node);
-		consume(inst->inst(), addr_node, regs);
+			consume_edge(regs[i], mem_node);
+		consume_edge(inst->inst(), addr_node, regs);
 
 		// produce registers
 		reg_set_t null;
 		produce(inst->inst(), addr_node, null);
 
 		// time
+		// FIXME
 		worst_store_delay = 1;
 		elm::cout << "worst_store_delay = " << worst_store_delay << endl;
-		mem_node->setLatency(tricore_prod(info, inst->inst(), this) + 1 + worst_store_delay);
+		mem_node->setLatency(tricore_prod(info, inst->inst(), true) + 1 + worst_store_delay);
 	}
 
 	/**
@@ -437,7 +462,7 @@ public:
 		ParExeNode *mem_node = findExeAt(inst, SECOND_EXE_STAGE);
 		reg_set_t regs;
 		regOf(tricore_mreg(info, inst->inst()), regs);
-		consume(inst->inst(), addr_node, regs);
+		consume_edge(inst->inst(), addr_node, regs);
 		produce(inst->inst(), addr_node, regs);
 		for(int i = 0; i < regs.length(); i++)
 			produce(regs[i], mem_node);
@@ -450,7 +475,7 @@ public:
 	void dependenciesForLoop(ParExeInst *inst) {
 		ParExeNode *node = findExeAt(inst, isCoreE() ? 0 : 2);
 		reg_set_t null;
-		consume(inst->inst(), node, null);
+		consume_edge(inst->inst(), node, null);
 		produce(inst->inst(), node, null);
 	}
 
@@ -461,8 +486,11 @@ public:
 	void dependenciesForBranch(ParExeInst *inst) {
 		// TODO
 		int time = tricore_prod(info, inst->inst(), _coreE);
+		ParExeNode *cons_node = findExeAt(inst, FIRST_EXE_STAGE);
 		ParExeNode *prod_node = findExeAt(inst, min(SECOND_EXE_STAGE, time));
-		prod_node->setLatency(time);
+		reg_set_t null;
+		consume_edge(inst->inst(), cons_node, null);
+		//prod_node->setLatency(time);
 	}
 
 private:
@@ -510,6 +538,11 @@ public:
 protected:
 	virtual etime::EdgeTimeGraph *make(ParExeSequence *seq) {
 		PropList props;
+
+//
+//		for(Vector<Resource *>::Iter ri(*ressources()); ri(); ri++) {
+//			elm::cout << "resource: " << (*ri)->name() << endl;
+//		}
 
 		ExeGraph16E *graph = new ExeGraph16E(this->workspace(), _microprocessor, ressources(), seq, props, core == 0);
 		graph->setExplicit(true);

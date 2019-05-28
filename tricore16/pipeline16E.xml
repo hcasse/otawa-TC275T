@@ -44,20 +44,20 @@
 		</stage>
 		<stage id="EXE">
 			<name>EXE</name>
-			<width>2</width>
+			<width>1</width>   <!-- does not have any effects -->
 			<type>EXEC</type>
 			<ordered>true</ordered>
 			<fus>
 				<fu id="EXE_I">                       <!-- Integer pipeline -->
 					<name>EXE_I</name>
 					<width>1</width>
-					<latency>2</latency>
+					<latency>2</latency> <!-- The number of stages for the integer pipeline -->
 					<pipelined>true</pipelined>
 				</fu>
 				<fu id="EXE_M">                        <!-- Load/Store pipeline -->
 					<name>EXE_M</name>
 					<width>1</width>
-					<latency>2</latency>
+					<latency>2</latency>  <!-- The number of stages for the memory pipeline -->
 					<pipelined>true</pipelined>
 					<mem>true</mem>
 				</fu>

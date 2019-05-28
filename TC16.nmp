@@ -13,8 +13,8 @@ macro MULTI(n) = (2 << 8) | (n)
 macro SYNC(t, i) = (3 << 8) | R(t, i)
 
 // timing macros
-macro coreE = "coreE"
-macro select(te, tp) = if coreE then te else tp endif
+canon card(32) "coreE"
+macro select(te, tp) = if "coreE" then te else tp endif
 
 // pipeline macros
 macro IP = 0
@@ -256,7 +256,7 @@ extend addsc_a , addsc_at , addsca
 
 //mfcr
 extend mfcr
-	prod = 1
+	prod = 0 // originally 1, changed to 0 (the first EX stage)
 	pipe = LS
 	
 //move inst

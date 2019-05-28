@@ -63,7 +63,7 @@
 		DFlash access time = SRI_time + (DFlash_read_time + DFlash_ECC_time)*2 = 5 + (32 + 3)* 2 = 75 cycles		 
 	 -->
 
-	<item name="pfrws" type="range" default="0" label="Program Flash read wait states" low="0" high="15">
+	<item name="pfrws" type="range" default="0" label="Program Flash read wait states" low="0" high="13">
 		<help>Defines the number of wait state for a PFLASH read. Set by register FCON.WSPFLASH </help>
 	</item>
 	<item name="dfrws" type="range" default="0" label="Data Flash read wait states" low="0" high="63">
@@ -74,18 +74,19 @@
 	</item>
 	<item name="core" type="enum" label="Type of core">
 		<help>Select the type of core (P or E).</help>
-		<value label="core E" value="0"/> 
-		<value label="core P1" value="1" default="true"/>
+		<value label="core E" value="0" default="true"/>  <!-- or using otawa::tricore16::CORE -->
+		<value label="core P1" value="1"/>
 		<value label="core P2" value="2"/>
 	</item>
 </configuration>
 
 <platform>
-
 	<!-- cache definition -->
 	<xi:include href="tricore16/cache16E.xml"/>
+	
 	<!-- pipeline definition -->
 	<xi:include href="tricore16/pipeline16E.xml"/>
+	
 	<!-- memory definition -->
 	<memory>
 		<banks>
@@ -185,8 +186,8 @@
 				<address><offset>0x90000000</offset></address>
 				<size>0x00040000</size> <!-- 32 KBytes /-->
 				<type>SPM</type>
-				<latency>2</latency>				<!-- 6-7 cycles -->
-				<write_latency>2</write_latency>	<!--  -->
+				<latency>11</latency>				<!-- 6-7 cycles --> <!--  11 cycles when considering consecutive access, cache-able does not mean it will have cache hit hence the access time should be the same as non-cache-able address -->
+				<write_latency>11</write_latency>	<!--  -->
 				<writable>true</writable>
 				<cachable>true</cachable>
 			</bank>
@@ -195,28 +196,28 @@
 				<address><offset>0xB0000000</offset></address>
 				<size>0x00040000</size> <!-- 32 KBytes /-->
 				<type>SPM</type>
-				<latency>2</latency>
-				<write_latency>2</write_latency>
+				<latency>11</latency> <!-- 2 originally, 11 cycles when considering consecutive access -->
+				<write_latency>11</write_latency>
 				<writable>true</writable>
 				<cachable>false</cachable>
 			</bank>
 			<bank>
-				<name>BROM</name>   <!--BROM cachable-->
+				<name>BROM</name>   <!--BROM cachable, in DFLASH 54 cycles-->
 				<address><offset>0x8FFF8000</offset></address>
 				<size>0x00040000</size>  <!-- 32KBytes /-->
 				<type>ROM</type>
-				<latency>2</latency>
-				<write_latency>2</write_latency>
+				<latency>54</latency> <!--  was 2 cycles  -->
+				<write_latency>54</write_latency> <!--  was 2 cycles -->
 				<writable>false</writable>
 				<cachable>true</cachable>
 			</bank>
 			<bank>
-				<name>BROM</name>   <!--BROM no cachable-->
+				<name>BROM</name>   <!--BROM no cachable, follows DFLASH 54 cycles -->
 				<address><offset>0xAFFF8000</offset></address>
 				<size>0x00040000</size> <!-- 32KBytes /-->
 				<type>ROM</type>
-				<latency>2</latency>
-				<write_latency>2</write_latency>
+				<latency>54</latency>
+				<write_latency>54</write_latency>
 				<writable>false</writable>
 				<cachable>false</cachable>
 			</bank>
@@ -226,8 +227,8 @@
 				<size>0x01000000</size> <!-- 2 MBytes /-->
 				<type>ROM</type>
 				<!--  <latency><xsl:value-of select="1+$pfrws"/></latency>  -->
-				<latency>15</latency>
-				<write_latency>5</write_latency>
+				<latency>13</latency> <!--  15 cycles in the original script, 13 cycles from IRT TN 082 -->
+				<write_latency>13</write_latency>
 				<writable>true</writable>
 				<cachable>true</cachable>
 			</bank>
@@ -236,8 +237,8 @@
 				<address><offset>0xA0000000</offset></address>
 				<size>0x01000000</size> <!-- 2 MBytes /-->
 				<type>ROM</type>
-				<latency><xsl:value-of select="1+$pfrws"/></latency>
-				<write_latency>2</write_latency>
+				<latency>13</latency> <!--  <latency><xsl:value-of select="1+$pfrws"/></latency>  -->
+				<write_latency>13</write_latency>
 				<writable>true</writable>
 				<cachable>false</cachable>
 			</bank>
@@ -246,8 +247,8 @@
 				<address><offset>0x80200000</offset></address>
 				<size>0x01000000</size> <!-- 2 MBytes /-->
 				<type>ROM</type>
-				<latency><xsl:value-of select="1+$pfrws"/></latency>
-				<write_latency>2</write_latency>
+				<latency>13</latency> <!--  <latency><xsl:value-of select="1+$pfrws"/></latency>  -->
+				<write_latency>13</write_latency>
 				<writable>true</writable>
 				<cachable>true</cachable>
 			</bank>
@@ -256,8 +257,8 @@
 				<address><offset>0xA0200000</offset></address>
 				<size>0x01000000</size> <!-- 2 MBytes /-->
 				<type>ROM</type>
-				<latency><xsl:value-of select="1+$pfrws"/></latency>
-				<write_latency>2</write_latency>
+				<latency>13</latency> <!--  <latency><xsl:value-of select="1+$pfrws"/></latency>  -->
+				<write_latency>13</write_latency>
 				<writable>true</writable>
 				<cachable>false</cachable>
 			</bank>
@@ -266,8 +267,8 @@
 				<address><offset>0xAF000000</offset></address>
 				<size>0x00800000</size> <!-- 1 MByte /-->
 				<type>ROM</type>
-				<latency><xsl:value-of select="1+$dfrws"/></latency>
-				<write_latency>2</write_latency>
+				<latency>54</latency> <!--  <latency><xsl:value-of select="1+$dfrws"/></latency>  -->
+				<write_latency>54</write_latency>
 				<writable>true</writable>
 				<cachable>false</cachable>
 			</bank>
@@ -276,8 +277,8 @@
 				<address><offset>0xAF110000</offset></address>
 				<size>0x00080000</size> <!-- 64 KByte /-->
 				<type>ROM</type>
-				<latency>64</latency> <!--  <latency><xsl:value-of select="1+$dfrws"/></latency>  -->
-				<write_latency>2</write_latency>
+				<latency>54</latency> <!--  <latency><xsl:value-of select="1+$dfrws"/></latency>  -->
+				<write_latency>54</write_latency>
 				<writable>true</writable>
 				<cachable>false</cachable>
 			</bank>
