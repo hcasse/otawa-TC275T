@@ -94,11 +94,11 @@
 			<!-- xSPR P2-->
 			<bank>
 				<name>DSPR P2</name>
-				<address>0x50000000</address>
-				<size>0x00122880</size> <!-- 120 KBytes /-->
+				<address><offset>0x50000000</offset></address>
+				<size>0x0001E000</size> <!-- 120 KBytes /-->
 				<type>SPM</type>
 				<writable>true</writable>
-				<cachable>false</cachable> <!--  access remote DSPR should be cache-able -->
+				<cached>false</cached> <!--  access remote DSPR should be cache-able -->
 				<xsl:if test="$core=2">
 					<latency>1</latency> <!-- access local DSPR should have no latency -->
 				</xsl:if>
@@ -108,11 +108,11 @@
 			</bank>
 			<bank>
 				<name>PSPR P2</name>
-				<address>0x50100000</address>
+				<address><offset>0x50100000</offset></address>
 				<size>0x00008000</size> <!-- 32 KBytes /-->
 				<type>SPM</type>
 				<writable>true</writable>
-				<cachable>false</cachable> <!--  access remote DSPR should be cache-able -->
+				<cached>false</cached> <!--  access remote DSPR should be cache-able -->
 				<xsl:if test="$core=2">
 					<latency>1</latency> <!-- access local DSPR should have no latency -->
 				</xsl:if>
@@ -124,11 +124,11 @@
 			<!--  xSPR P1 -->
 			<bank>
 				<name>DSPR P1</name>
-				<address>0x60000000</address>
-				<size>0x00122880</size> <!-- 120 KBytes /-->
+				<address><offset>0x60000000</offset></address>
+				<size>0x0001E000</size> <!-- 120 KBytes /-->
 				<type>SPM</type>
 				<writable>true</writable>
-				<cachable>false</cachable>
+				<cached>false</cached>
 				<xsl:if test="$core=1">
 					<latency>1</latency>
 				</xsl:if>
@@ -138,11 +138,11 @@
 			</bank>
 			<bank>
 				<name>PSPR P1</name>
-				<address>0x60100000</address>
+				<address><offset>0x60100000</offset></address>
 				<size>0x00008000</size> <!-- 32 KBytes /-->
 				<type>SPM</type>
 				<writable>true</writable>
-				<cachable>false</cachable>
+				<cached>false</cached>
 				<xsl:if test="$core=1">
 					<latency>1</latency>
 				</xsl:if>
@@ -154,11 +154,11 @@
 			<!--  xSPR E -->
 			<bank>
 				<name>DSPR E</name>
-				<address>0x70000000</address>
-				<size>0x00114688</size> <!-- 112 KBytes /-->
+				<address><offset>0x70000000</offset></address>
+				<size>0x0001C000</size> <!-- 112 KBytes /-->
 				<type>SPM</type>
 				<writable>true</writable>
-				<cachable>false</cachable>
+				<cached>false</cached>
 				<xsl:if test="$core=0">
 					<latency>0</latency>
 				</xsl:if>
@@ -168,11 +168,11 @@
 			</bank>
 			<bank>
 				<name>PSPR E</name>
-				<address>0x70100000</address>
+				<address><offset>0x70100000</offset></address>
 				<size>0x00006000</size> <!-- 24 KBytes /-->
 				<type>SPM</type>
 				<writable>true</writable>
-				<cachable>false</cachable>
+				<cached>false</cached>
 				<xsl:if test="$core=0">
 					<latency>1</latency>
 				</xsl:if>
@@ -182,47 +182,47 @@
 			</bank>
 			
 			<bank>
-				<name>SRAM</name>   <!--LMU sram cachable-->
+				<name>SRAM</name>   <!--LMU sram cached-->
 				<address><offset>0x90000000</offset></address>
 				<size>0x00040000</size> <!-- 32 KBytes /-->
 				<type>SPM</type>
 				<latency>11</latency>				<!-- 6-7 cycles --> <!--  11 cycles when considering consecutive access, cache-able does not mean it will have cache hit hence the access time should be the same as non-cache-able address -->
 				<write_latency>11</write_latency>	<!--  -->
 				<writable>true</writable>
-				<cachable>true</cachable>
+				<cached>true</cached>
 			</bank>
 			<bank>                     
-				<name>SRAM</name>   <!--LMU sram no cachable-->
+				<name>SRAM</name>   <!--LMU sram no cached-->
 				<address><offset>0xB0000000</offset></address>
 				<size>0x00040000</size> <!-- 32 KBytes /-->
 				<type>SPM</type>
 				<latency>11</latency> <!-- 2 originally, 11 cycles when considering consecutive access -->
 				<write_latency>11</write_latency>
 				<writable>true</writable>
-				<cachable>false</cachable>
+				<cached>false</cached>
 			</bank>
 			<bank>
-				<name>BROM</name>   <!--BROM cachable, in DFLASH 54 cycles-->
+				<name>BROM</name>   <!--BROM cached, in DFLASH 54 cycles-->
 				<address><offset>0x8FFF8000</offset></address>
 				<size>0x00040000</size>  <!-- 32KBytes /-->
 				<type>ROM</type>
 				<latency>54</latency> <!--  was 2 cycles  -->
 				<write_latency>54</write_latency> <!--  was 2 cycles -->
 				<writable>false</writable>
-				<cachable>true</cachable>
+				<cached>true</cached>
 			</bank>
 			<bank>
-				<name>BROM</name>   <!--BROM no cachable, follows DFLASH 54 cycles -->
+				<name>BROM</name>   <!--BROM no cached, follows DFLASH 54 cycles -->
 				<address><offset>0xAFFF8000</offset></address>
 				<size>0x00040000</size> <!-- 32KBytes /-->
 				<type>ROM</type>
 				<latency>54</latency>
 				<write_latency>54</write_latency>
 				<writable>false</writable>
-				<cachable>false</cachable>
+				<cached>false</cached>
 			</bank>
 			<bank>
-				<name>PFLASH0</name>   <!--PFLASH0 cachable-->
+				<name>PFLASH0</name>   <!--PFLASH0 cached-->
 				<address><offset>0x80000000</offset></address>
 				<size>0x01000000</size> <!-- 2 MBytes /-->
 				<type>ROM</type>
@@ -230,118 +230,115 @@
 				<latency>13</latency> <!--  15 cycles in the original script, 13 cycles from IRT TN 082 -->
 				<write_latency>13</write_latency>
 				<writable>true</writable>
-				<cachable>true</cachable>
+				<cached>true</cached>
 			</bank>
 			<bank>
-				<name>PFLASH0</name>   <!--PFLASH0 no cachable-->
+				<name>PFLASH0</name>   <!--PFLASH0 no cached-->
 				<address><offset>0xA0000000</offset></address>
 				<size>0x01000000</size> <!-- 2 MBytes /-->
 				<type>ROM</type>
 				<latency>13</latency> <!--  <latency><xsl:value-of select="1+$pfrws"/></latency>  -->
 				<write_latency>13</write_latency>
 				<writable>true</writable>
-				<cachable>false</cachable>
+				<cached>false</cached>
 			</bank>
 			<bank>
-				<name>PFLASH1</name>   <!--PFLASH1 cachable-->
+				<name>PFLASH1</name>   <!--PFLASH1 cached-->
 				<address><offset>0x80200000</offset></address>
 				<size>0x01000000</size> <!-- 2 MBytes /-->
 				<type>ROM</type>
 				<latency>13</latency> <!--  <latency><xsl:value-of select="1+$pfrws"/></latency>  -->
 				<write_latency>13</write_latency>
 				<writable>true</writable>
-				<cachable>true</cachable>
+				<cached>true</cached>
 			</bank>
 			<bank>
-				<name>PFLASH1</name>   <!--PFLASH1 no cachable-->
+				<name>PFLASH1</name>   <!--PFLASH1 no cached-->
 				<address><offset>0xA0200000</offset></address>
 				<size>0x01000000</size> <!-- 2 MBytes /-->
 				<type>ROM</type>
 				<latency>13</latency> <!--  <latency><xsl:value-of select="1+$pfrws"/></latency>  -->
 				<write_latency>13</write_latency>
 				<writable>true</writable>
-				<cachable>false</cachable>
+				<cached>false</cached>
 			</bank>
 			<bank>
-				<name>DFLASH0</name>   <!--DFLASH0 no cachable-->
+				<name>DFLASH0</name>   <!--DFLASH0 no cached-->
 				<address><offset>0xAF000000</offset></address>
 				<size>0x00800000</size> <!-- 1 MByte /-->
 				<type>ROM</type>
 				<latency>54</latency> <!--  <latency><xsl:value-of select="1+$dfrws"/></latency>  -->
 				<write_latency>54</write_latency>
 				<writable>true</writable>
-				<cachable>false</cachable>
+				<cached>false</cached>
 			</bank>
 			<bank>
-				<name>DFLASH1</name>   <!--DFLASH1 no cachable-->
+				<name>DFLASH1</name>   <!--DFLASH1 no cached-->
 				<address><offset>0xAF110000</offset></address>
 				<size>0x00080000</size> <!-- 64 KByte /-->
 				<type>ROM</type>
 				<latency>54</latency> <!--  <latency><xsl:value-of select="1+$dfrws"/></latency>  -->
 				<write_latency>54</write_latency>
 				<writable>true</writable>
-				<cachable>false</cachable>
+				<cached>false</cached>
 			</bank>
 			<bank>
-				<name>IO0</name>   <!--IO0 no cachable--> <!-- PORT 0-2 /-->
+				<name>IO0</name>   <!--IO0 no cached--> <!-- PORT 0-2 /-->
 				<address><offset>0xF003A000</offset></address>
 				<size>0x00001800</size> <!-- 3* 256 Bytes /-->
 				<type>IO</type>
 				<latency>2</latency>
 				<write_latency>2</write_latency>
 				<writable>true</writable>
-				<cachable>false</cachable>
+				<cached>false</cached>
 			</bank>
 			<bank>
-				<name>IO1</name>   <!--IO1 no cachable--> <!-- PORT 10-15 /-->
+				<name>IO1</name>   <!--IO1 no cached--> <!-- PORT 10-15 /-->
 				<address><offset>0xF003B000</offset></address>
 				<size>0x00003000</size> <!-- 6* 256 Bytes /-->
 				<type>IO</type>
 				<latency>2</latency>
 				<write_latency>2</write_latency>
 				<writable>true</writable>
-				<cachable>false</cachable>
+				<cached>false</cached>
 			</bank>
 			<bank>
-				<name>IO2</name>   <!--IO2 no cachable--> <!-- PORT 20-23 /-->
+				<name>IO2</name>   <!--IO2 no cached--> <!-- PORT 20-23 /-->
 				<address><offset>0xF003C000</offset></address>
 				<size>0x00002000</size> <!-- 4* 256 Bytes /-->
 				<type>IO</type>
 				<latency>2</latency>
 				<write_latency>2</write_latency>
 				<writable>true</writable>
-				<cachable>false</cachable>
+				<cached>false</cached>
 			</bank>
 			<bank>
-				<name>IO3</name>   <!--IO3 no cachable--> <!-- PORT 32-34 /-->
+				<name>IO3</name>   <!--IO3 no cached--> <!-- PORT 32-34 /-->
 				<address><offset>0xF003D200</offset></address>
 				<size>0x00001800</size> <!-- 3* 256 Bytes /-->
 				<type>IO</type>
 				<latency>2</latency>
 				<write_latency>2</write_latency>
 				<writable>true</writable>
-				<cachable>false</cachable>
+				<cached>false</cached>
 			</bank>
 			<bank>
-				<name>IO4</name>   <!--IO4 no cachable--> <!-- PORT 40 /-->
+				<name>IO4</name>   <!--IO4 no cached--> <!-- PORT 40 /-->
 				<address><offset>0xF003E000</offset></address>
 				<size>0x00000800</size> <!-- 256 Bytes /-->
 				<type>IO</type>
 				<latency>2</latency>
 				<write_latency>2</write_latency>
 				<writable>true</writable>
-				<cachable>false</cachable>
+				<cached>false</cached>
 			</bank>
 		</banks>
 	</memory>
 	<bht>
-		<cond_penalty>3</cond_penalty>
-		<indirect_penalty>3</indirect_penalty>
-		<cond_indirect_penalty>3</cond_indirect_penalty>
-		<def_predict>PREDICT_UNKNOWN</def_predict>
-		<row_bits>10</row_bits>
-		<row>0</row>					<!-- in fact 2 but RANDOM ! NOTE: replace policy not checked by the processor ! -->
-		<replace>RANDOM</replace>
+		<correct_taken_penalty>1</correct_taken_penalty>
+		<correct_not_taken_penalty>0</correct_not_taken_penalty>
+		<incorrect_taken_penalty>2</incorrect_taken_penalty>
+		<incorrect_not_taken_penalty>2</incorrect_not_taken_penalty>
 	</bht>
 
 </platform>
@@ -350,37 +347,39 @@
 	<config name="otawa::GRAPHS_OUTPUT_DIRECTORY" value="exeg"/>
 	<config name="otawa::ipet::EXPLICIT" value="true"/>
 	<config name="otawa::tricore16::CORE" value="0"/>
+	<config name="otawa::DEFAULT_BRANCH_PENALTY" value="0" />
+	
+	
+	<!--   
 	<step require="otawa::VIRTUALIZED_CFG_FEATURE"/>
+	<step processor="otawa::tricore16::BranchPreductionTC16E"/>
+	-->
+	
 	<step require="otawa::ICACHE_CATEGORY2_FEATURE"/> <!--  collect LBlocks, identifying when a cache load is necessary -->
-	<step require="otawa::ICACHE_ONLY_CONSTRAINT2_FEATURE"/>\
+	<step require="otawa::ICACHE_ONLY_CONSTRAINT2_FEATURE"/>
+	
+<!-- 	 -->
+		<!-- data cache -->		
+		<step processor="otawa::dcache::CLPBlockBuilder"/>
+		<step processor="otawa::dcache::ACSMustPersBuilder"/>            
+		<step processor="otawa::dcache::ACSMayBuilder"/>
+		<step processor="otawa::dcache::CATBuilder"/>
+		<step processor="otawa::dcache::CatConstraintBuilder"/>
+	
+	
+	
+	
+	
 	<step processor="otawa::tricore16::BBTimerTC16E">
 	</step>
-	<step require="otawa::ipet::WCET_FEATURE"/>	
+	<step require="otawa::ipet::WCET_FEATURE"/>
+	<step processor="otawa::display::ILPSystemDisplayer"/>
+	
+		<step processor="otawa::ilp::Output">
+			<config name="otawa::ilp::OUTPUT_PATH" value="abc.ilp"/>
+		</step>		
 </script>
 
-<script3>
-	<config name="otawa::GRAPHS_OUTPUT_DIRECTORY" value="exeg"/>
-	<config name="otawa::ipet::EXPLICIT" value="true"/>
-	<config name="otawa::tricore16::CORE" value="0"/>
-	<step processor="otawa::tricore16::CacheBlockFinder"/>
-	<!-- 
-	<step processor="otawa::util::LBlockBuilder"/>
-	 -->
-</script3>
-
-
-<script2>
-	<config name="otawa::GRAPHS_OUTPUT_DIRECTORY" value="exeg"/>
-	<config name="otawa::ipet::EXPLICIT" value="true"/>
-	<config name="otawa::tricore16::CORE" value="0"/>
-	<step require="otawa::VIRTUALIZED_CFG_FEATURE"/>
-	<step require="otawa::ICACHE_CATEGORY2_FEATURE"/> <!--  collect LBlocks, identifying when a cache load is necessary -->
-	<step require="otawa::tricore16::PREFETCH_CATEGORY_FEATURE"/>
-	<step require="otawa::ICACHE_ONLY_CONSTRAINT2_FEATURE"/>\
-	<step processor="otawa::tricore16::BBTimerTC16E">
-	</step>
-	<step require="otawa::ipet::WCET_FEATURE"/>	
-</script2>
 
 
 <script_original>
@@ -402,6 +401,7 @@
 	<step require="otawa::ipet::WCET_FEATURE"/>
 
 	<step processor="otawa::display::ILPSystemDisplayer"/>
+
 </script_original>
 
 </otawa-script>

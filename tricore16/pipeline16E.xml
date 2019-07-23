@@ -60,6 +60,7 @@
 					<latency>2</latency>  <!-- The number of stages for the memory pipeline -->
 					<pipelined>true</pipelined>
 					<mem>true</mem>
+					<mem_stage>1</mem_stage> <!-- the 2nd EX stage of the memory pipeline -->
 				</fu>
 				<fu id="EXE_F">                        <!-- Float Point Unit pipeline -->
 					<name>EXE_F</name>

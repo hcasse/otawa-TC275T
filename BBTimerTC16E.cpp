@@ -4,6 +4,7 @@
 #include <otawa/proc/BBProcessor.h>
 #include <otawa/branch/BranchBuilder.h>
 #include <otawa/branch/features.h>
+#include <otawa/dcache/features.h>
 #include <otawa/etime/EdgeTimeBuilder.h>
 #include <otawa/etime/features.h>
 #include <otawa/cache/cat2/features.h>
@@ -83,7 +84,7 @@ public:
 		ParExeSequence *seq,
 		const PropList &props = PropList::EMPTY,
 		bool coreE = true)
-	: etime::EdgeTimeGraph(ws, proc, hw_resources, seq, props), D(0), A(0), cur_inst(0), PSW(0), _coreE(coreE), ip(0), ls(0), lp(0), fp(0)
+	: etime::EdgeTimeGraph(ws, proc, hw_resources, seq, props), D(0), A(0), cur_inst(0), PSW(0), _coreE(coreE), ip(0), ls(0), lp(0), fp(0), nca(0), ncai(0), ncaiMax(0)
 	{
 		info = gliss::INFO(_ws->process());
 
@@ -137,7 +138,7 @@ public:
 		ASSERT(fp);
 
 		// compute worst_mem_delay
-		const hard::Memory *mem = hard::MEMORY_FEATURE.get(ws);
+		mem = hard::MEMORY_FEATURE.get(ws);
 		ASSERT(mem);
 		//worst_mem_delay = mem->worstAccess();
 		worst_store_delay = mem->worstWriteTime();
@@ -243,7 +244,7 @@ public:
 
 				// type determination
 				bool taken =
-						   inst->inst()->size() == 2
+						   prev->inst()->size() == 2
 						|| !prev->inst()->target()		// indirect branch considered mispredicted
 						|| prev->inst()->target()->address() < prev->inst()->topAddress();
 
@@ -257,6 +258,8 @@ public:
 					delay = 2;		// branch good prediction
 				else
 					delay = 1;		// sequence good prediction
+
+				elm::cout << prev->inst()->address() << " taken = " << taken << ", branching = " << branching << ", cost = " << delay << endl;
 
 				// create the edge
 				static string msg = "static branch prediction";
@@ -278,9 +281,22 @@ public:
 	}
 
 	virtual void findDataDependencies(void) {
+
+		BasicBlock* currBB = nullptr;
+		BasicBlock* prevBB = nullptr;
+
 		for(InstIterator inst(this); inst(); inst++) {
 			//cerr << "DEBUG: " << inst->inst() << io::endl;
 			if(inst->inst()->isMem()) {
+				prevBB = currBB;
+				currBB = inst->basicBlock();
+				if(prevBB != currBB) {
+					Pair<int, dcache::NonCachedAccess *> ncaa = dcache::NC_DATA_ACCESSES(currBB);
+					nca = ncaa.snd;
+					ncaiMax = ncaa.fst;
+					ncai = 0;
+				}
+
 				if(inst->inst()->isLoad()) {
 					if(inst->inst()->isStore())
 						dependenciesForLoadStore(*inst);
@@ -310,7 +326,7 @@ public:
 	 * @param excluded	Register to exclude (once).
 	 */
 	void consume_edge(Inst *inst, ParExeNode *node, reg_set_t& excluded) {
-		const elm::genstruct::Table<hard::Register *>& reads = inst->readRegs();
+		const Array<hard::Register *>& reads = inst->readRegs();
 		for(int i = 0; i < reads.count(); i++) {
 			if(excluded.contains(reads[i])) {
 				excluded.remove(reads[i]);
@@ -328,7 +344,6 @@ public:
 	void consume_edge(const hard::Register *reg, ParExeNode *node) {
 		//cerr << "DEBUG:\tconsume " << reg->name() << io::endl;
 		ParExeNode *producer = regs[reg->platformNumber()];
-		elm::cout << "read reg " << reg->name() << " with producer = " << (void*)producer << endl;
 		if(producer != NULL) {
 			node->addProducer(producer);
 
@@ -351,7 +366,7 @@ public:
 	 * @param excluded	Register to exclude (once).
 	 */
 	void produce(Inst *inst, ParExeNode *node, reg_set_t& excluded) {
-		const elm::genstruct::Table<hard::Register *>& writes = inst->writtenRegs();
+		const Array<hard::Register *>& writes = inst->writtenRegs();
 		for(int i = 0; i < writes.count(); i++) {
 			if(excluded.contains(writes[i])) {
 				excluded.remove(writes[i]);
@@ -422,9 +437,16 @@ public:
 		produce(inst->inst(), mem_node, regs);
 
 		// time
-		// FIXME
-		worst_load_delay = 4;
-		mem_node->setLatency(tricore_prod(info, inst->inst(), true)+ worst_load_delay);
+		while((ncaiMax > 0) && (nca[ncai].instruction()->address() < inst->inst()->address()))
+			ncai++;
+
+		if((ncai != ncaiMax) && (nca[ncai].instruction()->address() == inst->inst()->address())) {
+			elm::cout << nca[ncai] << " has access cost of " << costOf(nca[ncai].getAddresses()[0], false) << endl;
+		}
+		else {
+			elm::cout << "The access for inst " << inst->inst() << " @ " << inst->inst()->address() << " can not be identified" << endl;
+			mem_node->setLatency(tricore_prod(info, inst->inst(), true)+ worst_load_delay);
+		}
 	}
 
 	/**
@@ -447,14 +469,22 @@ public:
 		produce(inst->inst(), addr_node, null);
 
 		// time
-		// FIXME
-		worst_store_delay = 1;
-		elm::cout << "worst_store_delay = " << worst_store_delay << endl;
-		mem_node->setLatency(tricore_prod(info, inst->inst(), true) + 1 + worst_store_delay);
+		while((ncaiMax > 0) && (nca[ncai].instruction()->address() < inst->inst()->address()))
+			ncai++;
+
+		if((ncai != ncaiMax) && (nca[ncai].instruction()->address() == inst->inst()->address())) {
+			elm::cout << nca[ncai] << " has access cost of " << costOf(nca[ncai].getAddresses()[0], false) << endl;
+		}
+		else {
+			elm::cout << "The access for inst " << inst->inst() << " @ " << inst->inst()->address() << " can not be identified" << endl;
+			mem_node->setLatency(tricore_prod(info, inst->inst(), true) + worst_store_delay); // need to do Store buffer analysis
+		}
+
+
 	}
 
 	/**
-	 * Generate dependencies for store instructions.
+	 * Generate dependencies for load-store instructions.
 	 * @param inst	Concerned instruction.
 	 */
 	void dependenciesForLoadStore(ParExeInst *inst) {
@@ -466,6 +496,7 @@ public:
 		produce(inst->inst(), addr_node, regs);
 		for(int i = 0; i < regs.length(); i++)
 			produce(regs[i], mem_node);
+		ASSERT(0); // check who is a load also a store
 	}
 
 	/**
@@ -490,7 +521,7 @@ public:
 		ParExeNode *prod_node = findExeAt(inst, min(SECOND_EXE_STAGE, time));
 		reg_set_t null;
 		consume_edge(inst->inst(), cons_node, null);
-		//prod_node->setLatency(time);
+		prod_node->setLatency(time);
 	}
 
 private:
@@ -501,6 +532,7 @@ private:
 	otawa::ParExeInst *cur_inst;
 	bool _coreE;
 	ParExePipeline *ip, *ls, *lp, *fp;
+	const hard::Memory *mem;
 	int worst_store_delay;
 	int worst_load_delay;
 
@@ -523,6 +555,16 @@ private:
 		return 0;
 	}
 
+	ot::time costOf(Address addr, bool write) {
+		const hard::Bank *bank = mem->get(addr);
+		if(!bank)
+			return write ? mem->worstWriteTime() : mem->worstReadTime();
+		return write ? bank->writeLatency() : bank->latency();
+	}
+
+	dcache::NonCachedAccess* nca;
+	int ncai;
+	int ncaiMax;
 };
 
 /**
@@ -537,14 +579,8 @@ public:
 
 protected:
 	virtual etime::EdgeTimeGraph *make(ParExeSequence *seq) {
-		PropList props;
 
-//
-//		for(Vector<Resource *>::Iter ri(*ressources()); ri(); ri++) {
-//			elm::cout << "resource: " << (*ri)->name() << endl;
-//		}
-
-		ExeGraph16E *graph = new ExeGraph16E(this->workspace(), _microprocessor, ressources(), seq, props, core == 0);
+		ExeGraph16E *graph = new ExeGraph16E(this->workspace(), _microprocessor, ressources(), seq, _props, core == 0);
 		graph->setExplicit(true);
 		graph->build();
 
@@ -559,6 +595,7 @@ protected:
 	virtual void configure(const PropList& props) {
 		etime::EdgeTimeBuilder::configure(props);
 		core = CORE(props);
+		_props = props;
 	}
 
 	virtual void clean(ParExeGraph *graph) {
@@ -567,13 +604,14 @@ protected:
 
 private:
 	int core;
+	PropList _props;
 };
 
 
 p::declare BBTimerTC16E::reg = p::init("otawa::tricore16::BBTimerTC16E", Version(1, 0, 0))
 		.base(etime::EdgeTimeBuilder::reg)
 		.require(otawa::hard::CACHE_CONFIGURATION_FEATURE)
-		.require(otawa::branch::CONSTRAINTS_FEATURE)
+		//.require(otawa::branch::CONSTRAINTS_FEATURE)
 		.require(otawa::gliss::INFO_FEATURE)
 		//.require(otawa::tricore16::PREFETCH_CATEGORY_FEATURE)
 		.maker<BBTimerTC16E>();

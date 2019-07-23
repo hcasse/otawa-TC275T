@@ -332,7 +332,7 @@ public:
 	 * @param excluded	Register to exclude (once).
 	 */
 	void consume(Inst *inst, ParExeNode *node, reg_set_t& excluded) {
-		const elm::genstruct::Table<hard::Register *>& reads = inst->readRegs();
+		const Array<hard::Register *>& reads = inst->readRegs();
 		for(int i = 0; i < reads.count(); i++) {
 			if(excluded.contains(reads[i])) {
 				excluded.remove(reads[i]);
@@ -364,7 +364,7 @@ public:
 	 * @param excluded	Register to exclude (once).
 	 */
 	void produce(Inst *inst, ParExeNode *node, reg_set_t& excluded) {
-		const elm::genstruct::Table<hard::Register *>& writes = inst->writtenRegs();
+		const Array<hard::Register *>& writes = inst->writtenRegs();
 		for(int i = 0; i < writes.count(); i++) {
 			if(excluded.contains(writes[i])) {
 				excluded.remove(writes[i]);

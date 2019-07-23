@@ -274,7 +274,7 @@ extend fcall , fcalla , fcalli , fret16 , fret
 extend 	call , call16 , calla , calli , ret , ret_16 ,
 		bisr , bisr16 , syscall ,
 		svlcx , rslcx , rfe , rfe16 , rfm
-	prod = 3
+	prod = 3 // 4 cycles to read/load from the DSPR, happens at M-EXE2 stage, so -1 cycle
 	pipe = LS
 
 
