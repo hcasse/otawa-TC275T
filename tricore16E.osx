@@ -358,14 +358,12 @@
 	<step require="otawa::ICACHE_CATEGORY2_FEATURE"/> <!--  collect LBlocks, identifying when a cache load is necessary -->
 	<step require="otawa::ICACHE_ONLY_CONSTRAINT2_FEATURE"/>
 	
-<!-- 	 -->
-		<!-- data cache -->		
-		<step processor="otawa::dcache::CLPBlockBuilder"/>
-		<step processor="otawa::dcache::ACSMustPersBuilder"/>            
-		<step processor="otawa::dcache::ACSMayBuilder"/>
-		<step processor="otawa::dcache::CATBuilder"/>
-		<step processor="otawa::dcache::CatConstraintBuilder"/>
-	
+	<!-- data cache -->		
+	<step processor="otawa::dcache::CLPBlockBuilder"/>
+	<step processor="otawa::dcache::ACSMustPersBuilder"/>            
+	<step processor="otawa::dcache::ACSMayBuilder"/>
+	<step processor="otawa::dcache::CATBuilder"/>
+	<step processor="otawa::dcache::CatConstraintBuilder"/>
 	
 	
 	

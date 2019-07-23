@@ -259,7 +259,7 @@ public:
 				else
 					delay = 1;		// sequence good prediction
 
-				elm::cout << prev->inst()->address() << " taken = " << taken << ", branching = " << branching << ", cost = " << delay << endl;
+				// elm::cout << prev->inst()->address() << " taken = " << taken << ", branching = " << branching << ", cost = " << delay << endl;
 
 				// create the edge
 				static string msg = "static branch prediction";
@@ -441,10 +441,11 @@ public:
 			ncai++;
 
 		if((ncai != ncaiMax) && (nca[ncai].instruction()->address() == inst->inst()->address())) {
-			elm::cout << nca[ncai] << " has access cost of " << costOf(nca[ncai].getAddresses()[0], false) << endl;
+			// elm::cout << nca[ncai] << " has access cost of " << costOf(nca[ncai].getAddresses()[0], false) << endl;
+			mem_node->setLatency(tricore_prod(info, inst->inst(), true)+ costOf(nca[ncai].getAddresses()[0], false));
 		}
 		else {
-			elm::cout << "The access for inst " << inst->inst() << " @ " << inst->inst()->address() << " can not be identified" << endl;
+			// elm::cout << "The access for inst " << inst->inst() << " @ " << inst->inst()->address() << " can not be identified" << endl;
 			mem_node->setLatency(tricore_prod(info, inst->inst(), true)+ worst_load_delay);
 		}
 	}
@@ -473,14 +474,13 @@ public:
 			ncai++;
 
 		if((ncai != ncaiMax) && (nca[ncai].instruction()->address() == inst->inst()->address())) {
-			elm::cout << nca[ncai] << " has access cost of " << costOf(nca[ncai].getAddresses()[0], false) << endl;
+			// elm::cout << nca[ncai] << " has access cost of " << costOf(nca[ncai].getAddresses()[0], true) << endl;
+			// mem_node->setLatency(tricore_prod(info, inst->inst(), true)+ costOf(nca[ncai].getAddresses()[0] + 1, true));
 		}
 		else {
-			elm::cout << "The access for inst " << inst->inst() << " @ " << inst->inst()->address() << " can not be identified" << endl;
-			mem_node->setLatency(tricore_prod(info, inst->inst(), true) + worst_store_delay); // need to do Store buffer analysis
+			// elm::cout << "The access for inst " << inst->inst() << " @ " << inst->inst()->address() << " can not be identified" << endl;
+			mem_node->setLatency(tricore_prod(info, inst->inst(), true) + worst_store_delay + 1); // need to do Store buffer analysis
 		}
-
-
 	}
 
 	/**
