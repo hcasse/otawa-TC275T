@@ -107,7 +107,7 @@ protected:
 	}
 
 	void extractState(tricore_sim_t *sim, clp::State& clpState) {
-		for(avl::Set<unsigned int>::Iterator a(accessAddrs); a(); a++) {
+		for(avl::Set<unsigned int>::Iter a(accessAddrs); a(); a++) {
 			clp::Value addr(*a);
 			unsigned char data_dump = 0xDB;
 			tricore_mem_read(sim->state->M, *a, (void*)&data_dump, 1);
@@ -161,7 +161,7 @@ protected:
 		unsigned int currAddr = 0xFFFFFFFF;
 		unsigned int currOffset = 0xFFFFFFFF;
 		unsigned int currData = 0xCAFEBABE;
-		for(avl::Set<unsigned int>::Iterator a(accessAddrs); a(); a++) {
+		for(avl::Set<unsigned int>::Iter a(accessAddrs); a(); a++) {
 
 			if((*a) % 4 == 0) {
 				currOffset = 0;

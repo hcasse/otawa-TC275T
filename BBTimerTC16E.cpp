@@ -75,7 +75,7 @@ typedef enum {
 
 class ExeGraph16E: public etime::EdgeTimeGraph {
 public:
-	typedef genstruct::Vector<const hard::Register *> reg_set_t;
+	typedef Vector<const hard::Register *> reg_set_t;
 
 	ExeGraph16E(
 		WorkSpace *ws,
@@ -421,7 +421,7 @@ public:
 	 * Generate dependencies for load instructions.
 	 * @param inst	Concerned instruction.
 	 */
-	void dependenciesForLoad(ParExeInst *inst) {
+	void dependenciesForLoad(ParExeInst *inst) { // for un-cached access
 		ParExeNode *addr_node = findExeAt(inst, FIRST_EXE_STAGE);
 		ParExeNode *mem_node = findExeAt(inst, SECOND_EXE_STAGE);
 
@@ -441,12 +441,12 @@ public:
 			ncai++;
 
 		if((ncai != ncaiMax) && (nca[ncai].instruction()->address() == inst->inst()->address())) {
-			// elm::cout << nca[ncai] << " has access cost of " << costOf(nca[ncai].getAddresses()[0], false) << endl;
+			elm::cout << nca[ncai] << " has access cost of " << costOf(nca[ncai].getAddresses()[0], false) << endl;
 			mem_node->setLatency(tricore_prod(info, inst->inst(), true)+ costOf(nca[ncai].getAddresses()[0], false));
 		}
 		else {
 			// elm::cout << "The access for inst " << inst->inst() << " @ " << inst->inst()->address() << " can not be identified" << endl;
-			mem_node->setLatency(tricore_prod(info, inst->inst(), true)+ worst_load_delay);
+			// mem_node->setLatency(tricore_prod(info, inst->inst(), true)+ worst_load_delay);
 		}
 	}
 
@@ -479,7 +479,7 @@ public:
 		}
 		else {
 			// elm::cout << "The access for inst " << inst->inst() << " @ " << inst->inst()->address() << " can not be identified" << endl;
-			mem_node->setLatency(tricore_prod(info, inst->inst(), true) + worst_store_delay + 1); // need to do Store buffer analysis
+			// mem_node->setLatency(tricore_prod(info, inst->inst(), true) + worst_store_delay + 1); // need to do Store buffer analysis
 		}
 	}
 

@@ -84,7 +84,7 @@ protected:
 	void extractState(tricore_sim_t *sim, clp::State& clpState) {
 		if(debug) {
 			elm::cout << "Access addrs: ";
-			for(avl::Set<unsigned int>::Iterator a(accessAddrs); a(); a++)
+			for(avl::Set<unsigned int>::Iter a(accessAddrs); a(); a++)
 				elm::cout << hex(*a) << " ";
 			elm::cout << endl;
 		}

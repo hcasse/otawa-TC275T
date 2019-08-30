@@ -4,6 +4,7 @@
 #include <otawa/proc/BBProcessor.h>
 #include <otawa/branch/BranchBuilder.h>
 #include <otawa/branch/features.h>
+#include <otawa/dcache/features.h>
 #include <otawa/etime/EdgeTimeBuilder.h>
 #include <otawa/etime/features.h>
 #include <otawa/cache/cat2/features.h>
@@ -17,8 +18,16 @@ using namespace otawa;
 
 namespace otawa { namespace tricore16 {
 
+Identifier<int> CORE("otawa::tricore16::CORE", 0);
+
 #define FIRST_EXE_STAGE 0
 #define SECOND_EXE_STAGE 1
+#define F1_STAGE 1
+#define F2_STAGE 2
+#define PD_STAGE 3
+#define EX2_STAGE 5
+
+#define HISTORY_SIZE 7
 
 /*
  * TIMING of Instructions
@@ -40,7 +49,7 @@ namespace otawa { namespace tricore16 {
  *		input registers read at MAC
  *		output registers written at ALU
  *	* for other integer ALU operation (l latency)
- *		input registers read at ALU - max(l - 1, 2)
+ *		input registers read at ALU - max(l - 2, 2)
  *		output registers written at ALU
  *		if latency > 3 then latency of ALU is l - 2
  *	* for loop instruction
@@ -70,19 +79,18 @@ typedef enum {
 
 
 
-
-class ExeGraph: public etime::EdgeTimeGraph {
+class ExeGraph16P: public etime::EdgeTimeGraph {
 public:
-	typedef genstruct::Vector<const hard::Register *> reg_set_t;
+	typedef Vector<const hard::Register *> reg_set_t;
 
-	ExeGraph(
+	ExeGraph16P(
 		WorkSpace *ws,
 		ParExeProc *proc,
 		elm::Vector<Resource *> *hw_resources,
 		ParExeSequence *seq,
 		const PropList &props = PropList::EMPTY,
-		bool coreE = false)
-	: etime::EdgeTimeGraph(ws, proc, hw_resources, seq, props), D(0), A(0), cur_inst(0), PSW(0), _coreE(coreE), ip(0), ls(0), lp(0), fp(0)
+		bool coreE = true)
+	: etime::EdgeTimeGraph(ws, proc, hw_resources, seq, props), D(0), A(0), cur_inst(0), PSW(0), _coreE(coreE), ip(0), ls(0), lp(0), fp(0), nca(0), ncai(0), ncaiMax(0)
 	{
 		info = gliss::INFO(_ws->process());
 
@@ -136,12 +144,14 @@ public:
 		ASSERT(fp);
 
 		// compute worst_mem_delay
-		const hard::Memory *mem = hard::MEMORY_FEATURE.get(ws);
+		mem = hard::MEMORY_FEATURE.get(ws);
 		ASSERT(mem);
-		worst_mem_delay = mem->worstAccess();
+		//worst_mem_delay = mem->worstAccess();
+		worst_store_delay = mem->worstWriteTime();
+		worst_load_delay = mem->worstReadTime();
 	}
 
-	virtual ~ExeGraph(void) { }
+	virtual ~ExeGraph16P(void) { }
 
 	/**
 	 * Test if the graph is done for core E processor.
@@ -176,6 +186,12 @@ public:
 		}
 	}
 
+
+	virtual void createNodes(void) {
+		_resources.setLength(1); // only keep the first resource, the "start" resource
+		ParExeGraph::createNodes();
+	}
+
 	/**
 	 * Set the delay of a stage.
 	 * @param stage		Execution stage number to set delay for.
@@ -185,65 +201,191 @@ public:
 //		findExeAt(cur_inst, stage)->setLatency(delay);
 //	}
 
-	void kkk(List<ParExeStage *> *list_of_stages){
+
+	void addEdgesForProgramOrder(List<ParExeStage *> *list_of_stages) { // for P-core we need to consider superscalar
 		static string program_order("program order");
+		static string superscalar("superscalar");
+		static string fetch_fifo("fetch fifo");
 
-		// select list of in-order stages
-		List<ParExeStage *> *list;
-		if(list_of_stages != NULL)
-			list = list_of_stages;
-		else
-			list = _microprocessor->listOfInorderStages();
-
-		// create the edges
-		for(StageIterator stage(list) ; stage() ; stage++) {
-			int count = 1;
-			ParExeNode *previous = NULL;
-			int prev_id = 0;
-			for(ParExeStage::NodeIterator node(*stage); node(); node++){
-				if(previous){
-					if(stage->width() == 1)
-						new ParExeEdge(previous, *node, ParExeEdge::SOLID, 0, program_order);
-				}
-				previous = *node;
-			}
-		}
-	}
-
-	void addEdgesForProgramOrder(List<ParExeStage *> *list_of_stages) {
-		// make sure two instructions that uses the same kind of pipeline goes one after another
-		//ParExeGraph::addEdgesForProgramOrder(list_of_stages);
-		kkk(list_of_stages);
-
-		// 3 stages for each functional units
-		// for the 2nd and 3rd stage, an instruction can only run after the previous instruction of the same kind of pipeline finishes
-		// prepare map
-		elm::HashMap<ParExeStage *, ParExeNode *> nodes;
-		ParExePipeline *pipes[] = { ip, ls, lp, fp };
-		for(int i = 0; i < 4; i++) {
-			// there are two stages for the execution
-			ParExePipeline::StageIterator stage(pipes[i]);
-			nodes.put(*stage, 0); // initial value for the map is nullptr as there is no previous parexenode
-			stage++;
-			nodes.put(*stage, 0);
-		}
-
-		// add missing edges
+		int numOfStages = 0;
 		for(InstIterator inst(this); inst(); inst++) {
 			for(ParExeInst::NodeIterator node(*inst); node(); node++) {
-				Option<ParExeNode *> prev = nodes.get(node->stage());
-				if(prev) { // if there is a prev node
-					if(*prev)
-						new ParExeEdge(*prev, *node, ParExeEdge::SOLID, 0, "prog-pipe");
-					nodes.put(node->stage(), *node); // update the map
-				}
+				numOfStages++;
 			}
-		} // for each instruction
+			break;
+		}
+
+//		ParExeNode *previous[numOfStages] = { nullptr };
+//		ParExeNode *previous2[numOfStages] = { nullptr };
+
+		ParExeNode *previous[HISTORY_SIZE][numOfStages];
+		for(int i = 0; i < 6 ; i++)
+			for(int j = 0; j < numOfStages ; j++)
+				previous[i][j] = nullptr;
+
+		bool prevSuperScalar = false;
+		for(InstIterator inst(this); inst(); inst++) {
+
+			int index = 0;
+			int superScalar = -1;
+			int stage = 0;
+
+			if((superScalar == -1) && previous[0][index] && ((previous[0][index]->inst()->inst()->kind() & 0xE0000000) == 0) && ((inst->inst()->kind() & 0xE0000000) == 0x40000000))
+				superScalar = 1;
+			else if (superScalar == -1)
+				superScalar = 0;
+
+
+			for(ParExeInst::NodeIterator node(*inst); node(); node++) {
+				stage++;
+
+				if(previous[0][index]) {
+
+					if((stage >= PD_STAGE) && (superScalar == 1)) { // LS follows by IP
+						new ParExeEdge(previous[0][index], *node, ParExeEdge::SLASHED, 0, superscalar);
+						//elm::cout << previous[index]->inst()->inst() << " @ " << previous[index]->inst()->inst()->address() << " has super scalar effect" << endl;
+					}
+					else {
+						if(stage == F1_STAGE) { // F1
+							// Donothing, let PFlash analysis handles it
+						}
+						else if(stage == F2_STAGE) { // F2
+							new ParExeEdge(previous[0][index], *node, ParExeEdge::SLASHED, 0, fetch_fifo);
+						}
+						else {
+							new ParExeEdge(previous[0][index], *node, ParExeEdge::SOLID, 0, program_order);
+						}
+					}
+
+					if(prevSuperScalar && previous[1][index] && (stage > EX2_STAGE))
+						new ParExeEdge(previous[1][index], *node, ParExeEdge::SOLID, 0, superscalar);
+
+/*
+					// previous 3 E2 -> current PD (the current instruction can enter the PD stage once the 4th instruction prior to the current one has completed its EX2)
+					if((stage == 3) && previous[3][5]) {
+						new ParExeEdge(previous[3][5], *node, ParExeEdge::SOLID, 0, "cong");
+					}
+
+					// previous 6 PD -> current F2 (the current instruction can enter the FIFO once the 7th instruction prior to the current one has completes its PD)
+					if((stage == 1) && previous[6][2]) {
+						new ParExeEdge(previous[6][2], *node, ParExeEdge::SOLID, 0, "fill");
+					}
+*/
+				}
+
+				for(int i = HISTORY_SIZE - 1; i > 0 ; i--)
+					previous[i][index] = previous[i-1][index];
+				previous[0][index] = *node;
+				index++;
+			}
+
+			if(superScalar)
+				prevSuperScalar = true;
+			else
+				prevSuperScalar = false;
+
+		}
+
+
+		// instruction FIFO
+		int stage = 0;
+		for(InstIterator inst(this); inst(); inst++) {
+			for(ParExeInst::NodeIterator node(*inst); node(); node++) {
+
+			}
+		}
+
+
 	}
+
+	void addEdgesForFetchPrime(void) {
+		static string cache_trans_msg = "cache", cache_inter_msg = "line", branch_msg = "branch", cache_intra_msg = "intra";
+		static string in_order = "in-order";
+
+		// get fetch stage
+		ParExeStage *fetch_stage = _microprocessor->fetchStage();
+		ParExeNode * first_cache_line_node = fetch_stage->firstNode();
+		ParExeStage *branch_stage = _microprocessor->branchStage();
+
+		// compute current cache line
+		Address current_cache_line = 0;
+		if(_cache_line_size != 0)
+			current_cache_line = first_cache_line_node->inst()->inst()->address().offset() / _cache_line_size;
+
+		bool cached = true;
+		ParExeNode *previous = nullptr;
+		for (ParExeStage::NodeIterator node(fetch_stage) ; node() ; node++) {
+			if (previous){
+
+				// Address addr = inst->address();
+				const hard::Bank *bank = mem->get(node->inst()->inst()->address());
+				if(!bank)
+					elm::cerr << "\t\t\t\t" << "WARNING: no memory bank for code at " << node->inst()->inst()->address() << ": block considered as cached.\n";
+				else if(!bank->isCached()) {
+					cached = false;
+					elm::cerr << "\t\t\t\t" << "Address " << node->inst()->inst()->address() << " not cached. No need to create edge for cache\n";
+				}
+
+				// branch case
+				if (previous->inst()->inst()->topAddress() != node->inst()->inst()->address()) {
+
+					// look for the branch stage node
+					ParExeNode *branching_node = nullptr;
+					for(auto node = previous->inst()->nodes(); node(); node++)
+						if(node->stage() == branch_stage) {
+							branching_node = *node;
+							break;
+						}
+					ASSERT(branching_node != nullptr);
+
+					// create the edges
+					if(_branch_penalty && cached)
+						new ParExeEdge(branching_node, *node, ParExeEdge::SOLID, _branch_penalty, branch_msg);
+	//				if(_cache_line_size != 0 && cached)
+	//					new ParExeEdge(first_cache_line_node, *node, ParExeEdge::SOLID, _branch_penalty, comment(cache_inter_msg));
+				}
+
+				// no branch
+				else {
+					// no cache
+					if(_cache_line_size == 0) {
+						if(previous != nullptr)
+							new ParExeEdge(previous, *node, ParExeEdge::SOLID, 0, in_order);
+					}
+				}
+
+				// cache bound edges
+				if (cached) {
+					Address cache_line = node->inst()->inst()->address().offset() / _cache_line_size;
+					if(cache_line != current_cache_line) {
+						new ParExeEdge(first_cache_line_node, *node, ParExeEdge::SOLID, 0, cache_trans_msg); // between the 1st appearence of instructions from different cache set
+
+						if(first_cache_line_node != previous)
+							new ParExeEdge(previous, *node, ParExeEdge::SOLID, 0, cache_inter_msg); // the last instruction of the difference cache set to the 1st instruction of the new cache set
+						first_cache_line_node = *node;
+						current_cache_line = cache_line;
+					}
+					else // same cache line
+						new ParExeEdge(previous, *node, ParExeEdge::SLASHED, 0, cache_intra_msg); // within the same cache set
+				}
+
+			}
+			previous = *node;
+		}
+	}
+
+
 
 	virtual void addEdgesForFetch(void) {
 		// common part
-		ParExeGraph::addEdgesForFetch();
+		//ParExeGraph::addEdgesForFetch();
+		addEdgesForFetchPrime();
+
+
+
+
+
+
 		if(!isCoreE())
 			return;
 
@@ -265,7 +407,7 @@ public:
 
 				// type determination
 				bool taken =
-						   inst->inst()->size() == 2
+						   prev->inst()->size() == 2
 						|| !prev->inst()->target()		// indirect branch considered mispredicted
 						|| prev->inst()->target()->address() < prev->inst()->topAddress();
 
@@ -280,10 +422,12 @@ public:
 				else
 					delay = 1;		// sequence good prediction
 
+				// elm::cout << prev->inst()->address() << " taken = " << taken << ", branching = " << branching << ", cost = " << delay << endl;
+
 				// create the edge
 				static string msg = "static branch prediction";
 				if(delay >= 2)
-					new ParExeEdge(prev->node(1), inst->fetchNode(), ParExeEdge::SOLID, delay - 2, msg);
+					new ParExeEdge(prev->node(2), inst->fetchNode(), ParExeEdge::SOLID, delay - 2, msg);
 			}
 			prev = *inst;
 		}
@@ -300,9 +444,22 @@ public:
 	}
 
 	virtual void findDataDependencies(void) {
+
+		BasicBlock* currBB = nullptr;
+		BasicBlock* prevBB = nullptr;
+
 		for(InstIterator inst(this); inst(); inst++) {
 			//cerr << "DEBUG: " << inst->inst() << io::endl;
 			if(inst->inst()->isMem()) {
+				prevBB = currBB;
+				currBB = inst->basicBlock();
+				if(prevBB != currBB) {
+					Pair<int, dcache::NonCachedAccess *> ncaa = dcache::NC_DATA_ACCESSES(currBB);
+					nca = ncaa.snd;
+					ncaiMax = ncaa.fst;
+					ncai = 0;
+				}
+
 				if(inst->inst()->isLoad()) {
 					if(inst->inst()->isStore())
 						dependenciesForLoadStore(*inst);
@@ -331,14 +488,14 @@ public:
 	 * @param node		Consuming node.
 	 * @param excluded	Register to exclude (once).
 	 */
-	void consume(Inst *inst, ParExeNode *node, reg_set_t& excluded) {
+	void consume_edge(Inst *inst, ParExeNode *node, reg_set_t& excluded) {
 		const Array<hard::Register *>& reads = inst->readRegs();
 		for(int i = 0; i < reads.count(); i++) {
 			if(excluded.contains(reads[i])) {
 				excluded.remove(reads[i]);
 				continue;
 			}
-			consume(reads[i], node);
+			consume_edge(reads[i], node);
 		}
 	}
 
@@ -347,13 +504,21 @@ public:
 	 * @param reg	Consumed register.
 	 * @param node	Consumer.
 	 */
-	void consume(const hard::Register *reg, ParExeNode *node) {
+	void consume_edge(const hard::Register *reg, ParExeNode *node) {
 		//cerr << "DEBUG:\tconsume " << reg->name() << io::endl;
 		ParExeNode *producer = regs[reg->platformNumber()];
-		elm::cout << "read reg " << reg->name() << " with producer = " << (void*)producer << endl;
 		if(producer != NULL) {
 			node->addProducer(producer);
-			new ParExeEdge(producer, node, ParExeEdge::SOLID, 0, reg->name());
+
+			bool edgeExisted = false;
+			// only creates edge when necessary
+			for(ParExeGraph::Successor succ(producer); succ(); succ++)
+				if(*succ == node && succ.edge()->latency() == 0 && succ.edge()->type() == ParExeEdge::SOLID) {
+					edgeExisted = true;
+				}
+
+			if(!edgeExisted)
+				new ParExeEdge(producer, node, ParExeEdge::SOLID, 0, reg->name());
 		}
 	}
 
@@ -395,23 +560,24 @@ public:
 	/**
 	 * Generate dependencies for ALU instructions.
 	 * @param inst	Concerned instruction.
+	 * The ALU instruction generally have the results ready at the EX1
 	 */
 	void dependenciesForALU(ParExeInst *inst) {
 		int time = tricore_prod(info, inst->inst(), _coreE);
-#ifdef USE_ORIGINAL
-		ParExeNode *cons_node = findExeAt(inst, max(0, 2 - time)); // why consume at max, which means if it produce the result at the first cycle, eg. time = 0, the max (0,2) will be 2, the consume stage will be at 2...
-		ParExeNode *prod_node = findExeAt(inst, 2); // last FU is the production node
-#else
 		ParExeNode *cons_node = findExeAt(inst, FIRST_EXE_STAGE); // will consume at the first node
-		ParExeNode *prod_node = findExeAt(inst, min(SECOND_EXE_STAGE, time));
-#endif
-		elm::cout << "For " << inst->inst() << ", cons = " << cons_node->name() << ", prod_node = " << prod_node->name() << endl;
+
+		//ParExeNode *prod_node = findExeAt(inst, min(SECOND_EXE_STAGE, time));
+		ParExeNode *prod_node = NULL;
+		if(time < 1)
+			prod_node = findExeAt(inst, FIRST_EXE_STAGE);
+		else
+			prod_node = findExeAt(inst, SECOND_EXE_STAGE);
 
 		reg_set_t null;
-		consume(inst->inst(), cons_node, null);
+		consume_edge(inst->inst(), cons_node, null);
 		produce(inst->inst(), prod_node, null);
-		if(time > 2)
-			prod_node->setLatency(time/* - 1*/);
+		if(time > 1)
+			prod_node->setLatency(time - 1); // EX1 already takes 1 cycle, so the rest will be applied on EX2
 	}
 
 	/**
@@ -424,20 +590,27 @@ public:
 
 		// consume registers
 		reg_set_t null;
-		consume(inst->inst(), addr_node, null);
+		consume_edge(inst->inst(), addr_node, null);
 
 		// produce registers
 		reg_set_t regs;
 		regOf(tricore_mreg(info, inst->inst()), regs);
 		for(int i = 0; i < regs.length(); i++)
 			produce(regs[i], mem_node);
-		produce(inst->inst(), addr_node, regs);
+		produce(inst->inst(), mem_node, regs);
 
 		// time
-		mem_node->setLatency(
-			tricore_prod(info, inst->inst(), this)
-			+ worst_mem_delay
-			/*- 1*/);
+		while((ncaiMax > 0) && (nca[ncai].instruction()->address() < inst->inst()->address()))
+			ncai++;
+
+		if((ncai != ncaiMax) && (nca[ncai].instruction()->address() == inst->inst()->address())) {
+			// elm::cout << nca[ncai] << " has access cost of " << costOf(nca[ncai].getAddresses()[0], false) << endl;
+			mem_node->setLatency(tricore_prod(info, inst->inst(), true)+ costOf(nca[ncai].getAddresses()[0], false));
+		}
+		else {
+			// elm::cout << "The access for inst " << inst->inst() << " @ " << inst->inst()->address() << " can not be identified" << endl;
+			mem_node->setLatency(tricore_prod(info, inst->inst(), true)+ worst_load_delay);
+		}
 	}
 
 	/**
@@ -445,40 +618,48 @@ public:
 	 * @param inst	Concerned instruction.
 	 */
 	void dependenciesForStore(ParExeInst *inst) {
-		ParExeNode *addr_node = findExeAt(inst, 1);
-		ParExeNode *mem_node = findExeAt(inst, 2);
+		ParExeNode *addr_node = findExeAt(inst, FIRST_EXE_STAGE);
+		ParExeNode *mem_node = findExeAt(inst, SECOND_EXE_STAGE);
 
 		// consume registers
 		reg_set_t regs;
 		regOf(tricore_mreg(info, inst->inst()), regs);
 		for(int i = 0; i < regs.length(); i++)
-			consume(regs[i], mem_node);
-		consume(inst->inst(), addr_node, regs);
+			consume_edge(regs[i], mem_node);
+		consume_edge(inst->inst(), addr_node, regs);
 
 		// produce registers
 		reg_set_t null;
 		produce(inst->inst(), addr_node, null);
 
 		// time
-		mem_node->setLatency(
-			tricore_prod(info, inst->inst(), this) + 1
-			+ worst_mem_delay
-			- 1);
+		while((ncaiMax > 0) && (nca[ncai].instruction()->address() < inst->inst()->address()))
+			ncai++;
+
+		if((ncai != ncaiMax) && (nca[ncai].instruction()->address() == inst->inst()->address())) {
+			// elm::cout << nca[ncai] << " has access cost of " << costOf(nca[ncai].getAddresses()[0], true) << endl;
+			// mem_node->setLatency(tricore_prod(info, inst->inst(), true)+ costOf(nca[ncai].getAddresses()[0] + 1, true));
+		}
+		else {
+			// elm::cout << "The access for inst " << inst->inst() << " @ " << inst->inst()->address() << " can not be identified" << endl;
+			mem_node->setLatency(tricore_prod(info, inst->inst(), true) + worst_store_delay + 1); // need to do Store buffer analysis
+		}
 	}
 
 	/**
-	 * Generate dependencies for store instructions.
+	 * Generate dependencies for load-store instructions.
 	 * @param inst	Concerned instruction.
 	 */
 	void dependenciesForLoadStore(ParExeInst *inst) {
-		ParExeNode *addr_node = findExeAt(inst, 1);
-		ParExeNode *mem_node = findExeAt(inst, 2);
+		ParExeNode *addr_node = findExeAt(inst, FIRST_EXE_STAGE);
+		ParExeNode *mem_node = findExeAt(inst, SECOND_EXE_STAGE);
 		reg_set_t regs;
 		regOf(tricore_mreg(info, inst->inst()), regs);
-		consume(inst->inst(), addr_node, regs);
+		consume_edge(inst->inst(), addr_node, regs);
 		produce(inst->inst(), addr_node, regs);
 		for(int i = 0; i < regs.length(); i++)
 			produce(regs[i], mem_node);
+		ASSERT(0); // check who is a load also a store
 	}
 
 	/**
@@ -488,7 +669,7 @@ public:
 	void dependenciesForLoop(ParExeInst *inst) {
 		ParExeNode *node = findExeAt(inst, isCoreE() ? 0 : 2);
 		reg_set_t null;
-		consume(inst->inst(), node, null);
+		consume_edge(inst->inst(), node, null);
 		produce(inst->inst(), node, null);
 	}
 
@@ -499,7 +680,10 @@ public:
 	void dependenciesForBranch(ParExeInst *inst) {
 		// TODO
 		int time = tricore_prod(info, inst->inst(), _coreE);
+		ParExeNode *cons_node = findExeAt(inst, FIRST_EXE_STAGE);
 		ParExeNode *prod_node = findExeAt(inst, min(SECOND_EXE_STAGE, time));
+		reg_set_t null;
+		consume_edge(inst->inst(), cons_node, null);
 		prod_node->setLatency(time);
 	}
 
@@ -511,7 +695,9 @@ private:
 	otawa::ParExeInst *cur_inst;
 	bool _coreE;
 	ParExePipeline *ip, *ls, *lp, *fp;
-	int worst_mem_delay;
+	const hard::Memory *mem;
+	int worst_store_delay;
+	int worst_load_delay;
 
 	/**
 	 * Find a specific execution stage.
@@ -532,12 +718,22 @@ private:
 		return 0;
 	}
 
+	ot::time costOf(Address addr, bool write) {
+		const hard::Bank *bank = mem->get(addr);
+		if(!bank)
+			return write ? mem->worstWriteTime() : mem->worstReadTime();
+		return write ? bank->writeLatency() : bank->latency();
+	}
+
+	dcache::NonCachedAccess* nca;
+	int ncai;
+	int ncaiMax;
 };
 
 /**
  * Determine the type of core.
  */
-Identifier<int> CORE("otawa::tricore16::CORE", 1);
+//Identifier<int> CORE("otawa::tricore16::CORE", 1);
 
 class BBTimerTC16P: public etime::EdgeTimeBuilder {
 public:
@@ -546,9 +742,8 @@ public:
 
 protected:
 	virtual etime::EdgeTimeGraph *make(ParExeSequence *seq) {
-		PropList props;
 
-		ExeGraph *graph = new ExeGraph(this->workspace(), _microprocessor, ressources(), seq, props, core == 0);
+		ExeGraph16P *graph = new ExeGraph16P(this->workspace(), _microprocessor, ressources(), seq, _props, core == 0);
 		graph->setExplicit(true);
 		graph->build();
 
@@ -563,6 +758,7 @@ protected:
 	virtual void configure(const PropList& props) {
 		etime::EdgeTimeBuilder::configure(props);
 		core = CORE(props);
+		_props = props;
 	}
 
 	virtual void clean(ParExeGraph *graph) {
@@ -571,38 +767,18 @@ protected:
 
 private:
 	int core;
+	PropList _props;
 };
 
 
 p::declare BBTimerTC16P::reg = p::init("otawa::tricore16::BBTimerTC16P", Version(1, 0, 0))
 		.base(etime::EdgeTimeBuilder::reg)
 		.require(otawa::hard::CACHE_CONFIGURATION_FEATURE)
-		.require(otawa::branch::CONSTRAINTS_FEATURE)
+		//.require(otawa::branch::CONSTRAINTS_FEATURE)
 		.require(otawa::gliss::INFO_FEATURE)
 		//.require(otawa::tricore16::PREFETCH_CATEGORY_FEATURE)
 		.maker<BBTimerTC16P>();
 
-class Plugin: public ProcessorPlugin {
-public:
-	//typedef elm::genstruct::Table<AbstractRegistration * > procs_t;
-
-	//Plugin(void): ProcessorPlugin("otawa::tricore16", Version(1, 0, 0), OTAWA_PROC_VERSION) { }
-	//virtual procs_t& processors (void) const { return procs_t::EMPTY; };
-
-	typedef elm::genstruct::Table<AbstractRegistration *> procs_t;
-
-	Plugin(void): ProcessorPlugin(make("otawa::tricore16", OTAWA_PROC_VERSION)
-		.version(1, 0, 0)
-		.description("timing analyses for TriCore")
-		.license(Manager::copyright)) {
-	}
-
-};
 
 } }	// otawa::tricore16
-
-otawa::tricore16::Plugin otawa_tricore16;
-ELM_PLUGIN(otawa_tricore16, OTAWA_PROC_HOOK);
-
-
 

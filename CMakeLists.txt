@@ -17,7 +17,7 @@
 #	cmake . -DOTAWA_CONFIG=path/to/otawa-config
 
 CMAKE_MINIMUM_REQUIRED(VERSION 2.6)
-add_definitions(-g3 -O2)
+add_definitions(-g3 -O0)
 
 # configuration
 set(SCRIPT		"tricore16")		# machine model
