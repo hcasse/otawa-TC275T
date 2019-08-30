@@ -1,0 +1,24 @@
+checksum "malardalen_lcdnum_Tricore.elf" 0x6ca01c11;
+
+// Function core0_main (0_Src/0_AppSw/Tricore/Main/Cpu0_Main.c:140)
+ loop "core0_main" + 0x52 10 ; // 0x800004b0 (0_Src/0_AppSw/Tricore/Main/Cpu0_Main.c:148)
+
+multibranch "num_to_lcd" + 0x24 to 	// 0x800003d4 (0_Src/0_AppSw/Tricore/Main/Cpu0_Main.c:88)
+	"num_to_lcd" + 0x64,	// 0x80000414 (0_Src/0_AppSw/Tricore/Main/Cpu0_Main.c:88) switch-like branch in "num_to_lcd"
+	"num_to_lcd" + 0x60,	// 0x80000410 (0_Src/0_AppSw/Tricore/Main/Cpu0_Main.c:88) switch-like branch in "num_to_lcd"
+	"num_to_lcd" + 0x5c,	// 0x8000040c (0_Src/0_AppSw/Tricore/Main/Cpu0_Main.c:88) switch-like branch in "num_to_lcd"
+	"num_to_lcd" + 0x58,	// 0x80000408 (0_Src/0_AppSw/Tricore/Main/Cpu0_Main.c:88) switch-like branch in "num_to_lcd"
+	"num_to_lcd" + 0x54,	// 0x80000404 (0_Src/0_AppSw/Tricore/Main/Cpu0_Main.c:88) switch-like branch in "num_to_lcd"
+	"num_to_lcd" + 0x50,	// 0x80000400 (0_Src/0_AppSw/Tricore/Main/Cpu0_Main.c:88) switch-like branch in "num_to_lcd"
+	"num_to_lcd" + 0x4c,	// 0x800003fc (0_Src/0_AppSw/Tricore/Main/Cpu0_Main.c:88) switch-like branch in "num_to_lcd"
+	"num_to_lcd" + 0x48,	// 0x800003f8 (0_Src/0_AppSw/Tricore/Main/Cpu0_Main.c:88) switch-like branch in "num_to_lcd"
+	"num_to_lcd" + 0x44,	// 0x800003f4 (0_Src/0_AppSw/Tricore/Main/Cpu0_Main.c:88) switch-like branch in "num_to_lcd"
+	"num_to_lcd" + 0x40,	// 0x800003f0 (0_Src/0_AppSw/Tricore/Main/Cpu0_Main.c:88) switch-like branch in "num_to_lcd"
+	"num_to_lcd" + 0x3c,	// 0x800003ec (0_Src/0_AppSw/Tricore/Main/Cpu0_Main.c:88) switch-like branch in "num_to_lcd"
+	"num_to_lcd" + 0x38,	// 0x800003e8 (0_Src/0_AppSw/Tricore/Main/Cpu0_Main.c:88) switch-like branch in "num_to_lcd"
+	"num_to_lcd" + 0x34,	// 0x800003e4 (0_Src/0_AppSw/Tricore/Main/Cpu0_Main.c:88) switch-like branch in "num_to_lcd"
+	"num_to_lcd" + 0x30,	// 0x800003e0 (0_Src/0_AppSw/Tricore/Main/Cpu0_Main.c:88) switch-like branch in "num_to_lcd"
+	"num_to_lcd" + 0x2c,	// 0x800003dc (0_Src/0_AppSw/Tricore/Main/Cpu0_Main.c:88) switch-like branch in "num_to_lcd"
+	"num_to_lcd" + 0x28;	// 0x800003d8 (0_Src/0_AppSw/Tricore/Main/Cpu0_Main.c:88) switch-like branch in "num_to_lcd"
+
+

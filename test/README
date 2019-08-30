@@ -1,0 +1,5 @@
+To compute the WCET for E core:
+owcet -s tricore16E malardalen_lcdnum_Tricore.elf -f init.ffx -f dbranch.ff -v core0_main
+
+To compute the WCET for P core:
+owcet -s tricore16E malardalen_lcdnum_Tricore.elf -f init.ffx -f dbranch.ff -v core0_main

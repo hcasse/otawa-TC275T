@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<flowfacts>
+<reg-set name="a10" value="0x70019600"></reg-set>
+<reg-set name="CTX" value="0x70019C00"></reg-set>
+</flowfacts>
