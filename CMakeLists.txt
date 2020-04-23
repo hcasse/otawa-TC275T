@@ -16,16 +16,32 @@
 # Or passed explicetely:
 #	cmake . -DOTAWA_CONFIG=path/to/otawa-config
 
+PROJECT(otawa_tc275t)
+
 CMAKE_MINIMUM_REQUIRED(VERSION 2.6)
 add_definitions(-g3 -O0)
+SET(CMAKE_INCLUDE_CURRENT_DIR TRUE)
 
 # configuration
 set(SCRIPT		"tricore16")		# machine model
 set(NAMESPACE	"otawa")	# namespace (classes must be contained in the namespace otawa::model)
 set(FILES		pipeline16E.xml pipeline16P.xml mem.xml cache16P.xml cache16E.xml)				# cache, pipeline, memory
 set(MODULES	)				# used modules (to pass to otawa-config=
-#set(SOURCES 	clp_analysis.cpp clp_symbolic_expr.cpp ContextualValueInfo.cpp MemoryAccessIdentifier.cpp AddressExtracter.cpp CLPSimulator.cpp CLPInitiator.cpp verification.cpp tricore16P.cpp prod16P.h mreg.h pipe.h)				# sources of the plugin
-set(SOURCES 	ContextualValueInfo.cpp MemoryAccessIdentifier.cpp AddressExtracter.cpp CLPSimulator.cpp CLPInitiator.cpp AbstractStateVerifier.cpp PrefetchCategoryAnalysis.cpp BBTimerTC16P.cpp BBTimerTC16E.cpp TC16.h prodTC16.cpp mregTC16.cpp pipeTC16.cpp CacheBlockFinder.cpp BranchPredictionTC16E.cpp)				# sources of the plugin
+set(SOURCES
+	ContextualValueInfo.cpp
+	MemoryAccessIdentifier.cpp
+	AddressExtracter.cpp
+	CLPSimulator.cpp
+	CLPInitiator.cpp
+	AbstractStateVerifier.cpp
+	PrefetchCategoryAnalysis.cpp
+	BBTimerTC16P.cpp
+	BBTimerTC16E.cpp
+	TC16.h prodTC16.cpp
+	mregTC16.cpp
+	pipeTC16.cpp
+	CacheBlockFinder.cpp
+	BranchPredictionTC16E.cpp)				# sources of the plugin
 
 
 # C++ 11
@@ -38,8 +54,31 @@ else()
 endif()
 
 
+# look for OTAWA
+if(NOT OTAWA_CONFIG)
+	find_program(OTAWA_CONFIG otawa-config DOC "path to otawa-config")
+	if(NOT OTAWA_CONFIG)
+		message(FATAL_ERROR "ERROR: otawa-config is required !")
+	endif()
+endif()
+message(STATUS "otawa-config at ${OTAWA_CONFIG}")
+execute_process(COMMAND "${OTAWA_CONFIG}" --cflags ${MODULES} OUTPUT_VARIABLE OTAWA_CFLAGS OUTPUT_STRIP_TRAILING_WHITESPACE)
+execute_process(COMMAND "${OTAWA_CONFIG}" --libs ${MODULES}  OUTPUT_VARIABLE OTAWA_LDFLAGS OUTPUT_STRIP_TRAILING_WHITESPACE)
+execute_process(COMMAND "${OTAWA_CONFIG}" --prefix OUTPUT_VARIABLE OTAWA_PREFIX OUTPUT_STRIP_TRAILING_WHITESPACE)
+execute_process(COMMAND "${OTAWA_CONFIG}" --datadir OUTPUT_VARIABLE OTAWA_DATADIR OUTPUT_STRIP_TRAILING_WHITESPACE)
+
+
+# find the IRG
+find_file(TRICORE_IRG tricore.irg PATHS
+	"${OTAWA_DATADIR}/isas"
+	"${CMAKE_SOURCE_DIR}/../tricore/tricore.irg")
+find_library(TRICORE_LIB tricore PATHS
+	"${OTAWA_PREFIX}/lib/otawa/isas"
+	"${CMAKE_SOURCE_DIR}/../tricore/src/libtricore.a"
+	NO_DEFAULT_PATH)
+
+
 # generation of prods
-set(TRICORE_IRG	"${CMAKE_SOURCE_DIR}/../tricore/tricore.irg")
 set(GLISS_ATTR	"${CMAKE_SOURCE_DIR}/../gliss2/gep/gliss-attr")
 add_custom_command(
 	OUTPUT		"prod.h"
@@ -99,28 +138,17 @@ project(${SCRIPT})
 include_directories("${CMAKE_SOURCE_DIR}/include")
 
 
-# look for OTAWA
-if(NOT OTAWA_CONFIG)
-	find_program(OTAWA_CONFIG otawa-config DOC "path to otawa-config")
-	if(NOT OTAWA_CONFIG)
-		message(FATAL_ERROR "ERROR: otawa-config is required !")
-	endif()
-endif()
-message(STATUS "otawa-config at ${OTAWA_CONFIG}")
-execute_process(COMMAND "${OTAWA_CONFIG}" --cflags ${MODULES} OUTPUT_VARIABLE OTAWA_CFLAGS OUTPUT_STRIP_TRAILING_WHITESPACE)
-execute_process(COMMAND "${OTAWA_CONFIG}" --libs ${MODULES}  OUTPUT_VARIABLE OTAWA_LDFLAGS OUTPUT_STRIP_TRAILING_WHITESPACE)
-execute_process(COMMAND "${OTAWA_CONFIG}" --prefix OUTPUT_VARIABLE OTAWA_PREFIX OUTPUT_STRIP_TRAILING_WHITESPACE)
-
-
-set(TARGET_LIB	"${CMAKE_SOURCE_DIR}/../tricore/src/libtricore.a")
-
 # plugin definition
 set(CMAKE_INSTALL_RPATH "\\$ORIGIN/../../../")
 include_directories("${CMAKE_SOURCE_DIR}" "../tricore/include")
 add_library(${SCRIPT} SHARED ${SOURCES})
 set_property(TARGET ${SCRIPT} PROPERTY PREFIX "")
 set_property(TARGET ${SCRIPT} PROPERTY COMPILE_FLAGS "${OTAWA_CFLAGS}")
-target_link_libraries(${SCRIPT} "${OTAWA_LDFLAGS}" "${OTAWA_PREFIX}/lib/otawa/otawa/etime${CMAKE_SHARED_LIBRARY_SUFFIX}"  "${TARGET_LIB}")
+target_link_libraries(${SCRIPT}
+	"${OTAWA_LDFLAGS}"
+	"${OTAWA_PREFIX}/lib/otawa/otawa/etime${CMAKE_SHARED_LIBRARY_SUFFIX}" 
+	"${TRICORE_LIB}")
+
 
 # installation
 if(NOT PREFIX)
@@ -135,7 +163,6 @@ else()
 	install(TARGETS ${SCRIPT} LIBRARY DESTINATION ${MODULE_PATH})
 endif()
 install(FILES ${SCRIPT}.eld DESTINATION ${MODULE_PATH})
-# install(FILES ${SCRIPT}.osx DESTINATION ${SCRIPT_PATH})
 install(FILES tricore16E.osx DESTINATION ${SCRIPT_PATH})
 install(FILES tricore16P.osx DESTINATION ${SCRIPT_PATH})
 foreach(FILE ${FILES})
