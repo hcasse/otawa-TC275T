@@ -344,7 +344,7 @@
 </platform>
 
 <script>
-	<config name="otawa::GRAPHS_OUTPUT_DIRECTORY" value="exeg16p"/>
+	<!--config name="otawa::GRAPHS_OUTPUT_DIRECTORY" value="exeg16p"/-->
 	<config name="otawa::ipet::EXPLICIT" value="true"/>
 	<config name="otawa::tricore16::CORE" value="0"/>
 	<config name="otawa::DEFAULT_BRANCH_PENALTY" value="0" />
