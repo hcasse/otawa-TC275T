@@ -345,7 +345,7 @@
 
 <script>
 	<!--config name="otawa::GRAPHS_OUTPUT_DIRECTORY" value="exeg16p"/-->
-	<config name="otawa::ipet::EXPLICIT" value="true"/>
+	<!--config name="otawa::ipet::EXPLICIT" value="true"/-->
 	<config name="otawa::tricore16::CORE" value="0"/>
 	<config name="otawa::DEFAULT_BRANCH_PENALTY" value="0" />
 	
@@ -354,7 +354,6 @@
 	<step require="otawa::VIRTUALIZED_CFG_FEATURE"/>
 	<step processor="otawa::tricore16::BranchPreductionTC16E"/>
 	-->
-	
 	<step require="otawa::ICACHE_CATEGORY2_FEATURE"/> <!--  collect LBlocks, identifying when a cache load is necessary -->
 	<step require="otawa::ICACHE_ONLY_CONSTRAINT2_FEATURE"/>
 	
@@ -365,17 +364,14 @@
 	<step processor="otawa::dcache::CATBuilder"/>
 	<step processor="otawa::dcache::CatConstraintBuilder"/>
 	
-	
-	
-	
 	<step processor="otawa::tricore16::BBTimerTC16P">
 	</step>
 	<step require="otawa::ipet::WCET_FEATURE"/>
-	<step processor="otawa::display::ILPSystemDisplayer"/>
+	<!--step processor="otawa::display::ILPSystemDisplayer"/-->
 	
-	<step processor="otawa::ilp::Output">
+	<!-- step processor="otawa::ilp::Output">
 		<config name="otawa::ilp::OUTPUT_PATH" value="abc.ilp"/>
-	</step>		
+	</step-->		
 </script>
 
 
